@@ -41,5 +41,5 @@
 *.dwo
 
 myterm
-.vscode
+
 .DS_Store

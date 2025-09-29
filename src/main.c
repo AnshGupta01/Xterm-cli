@@ -1,50 +1,39 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <locale.h>
-#include <signal.h>
-#include "gui/gui.h"
-#include "shell/shell.h"
-#include "features/features.h"
+#include "../include/myterm.h"
 
-GUI* g_gui = NULL;
+// Global terminal instance for signal handling
+Terminal *g_terminal = NULL;
 
-int main(void) {
-    setlocale(LC_ALL, "");
-    
-    GUI gui;
-    g_gui = &gui;
-    
-    if (gui_init(&gui) != 0) {
-        fprintf(stderr, "Failed to initialize GUI\n");
+int main() {
+    // Set up locale for Unicode support
+    setup_locale();
+
+    // Create terminal instance
+    g_terminal = create_terminal();
+    if (!g_terminal) {
+        fprintf(stderr, "Failed to create terminal\n");
         return 1;
     }
-    
-    if (shell_init() != 0) {
-        fprintf(stderr, "Failed to initialize shell\n");
-        gui_cleanup(&gui);
-        return 1;
-    }
-    
-    history_init();
-    setup_signal_handlers();
-    
+
+    // Load command history from file
+    load_history_from_file(g_terminal);
+
+    // Initialize X11 GUI
+    init_x11(g_terminal);
+
+    // Setup signal handlers
+    setup_signal_handlers(g_terminal);
+
     // Create initial tab
-    Tab* initial_tab = tab_new(&gui);
-    if (!initial_tab) {
-        fprintf(stderr, "Failed to create initial tab\n");
-        shell_cleanup();
-        gui_cleanup(&gui);
-        return 1;
-    }
-    
-    // Run main GUI loop
-    gui_run(&gui);
-    
+    create_new_tab(g_terminal);
+
+    printf("MyTerm initialized successfully. Use XQuartz for display.\n");
+    printf("Starting main event loop...\n");
+
+    // Main event loop
+    handle_x11_events(g_terminal);
+
     // Cleanup
-    multiwatch_cleanup();
-    history_save();
-    shell_cleanup();
-    gui_cleanup(&gui);
-    
+    save_history_to_file(g_terminal);
+    cleanup_terminal(g_terminal);
     return 0;
 }
