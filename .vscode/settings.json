@@ -5,7 +5,8 @@
         "X11/Xlib.h": "c",
         "X11/keysym.h": "c",
         "X11/Xutil.h": "c",
-        "X11/Xlocale.h": "c"
+        "X11/Xlocale.h": "c",
+        "wait.h": "c"
     },
     "C_Cpp.default.includePath": [
         "/opt/X11/include",
@@ -14,7 +15,7 @@
     "files.exclude": {
         "**/*.o": true,        // Hide object files
         "**/*.exe": true,      // Hide Windows executables
-        // "**/myterm": true,     // Hide your specific binary (adjust name if different)
+        "**/xterm": true,     // Hide your specific binary (adjust name if different)
         "**/*.d": true,        // Hide dependency files (if generated)
         "**/build/": true,     // Hide build directories (if you use one)
         "**/.vscode/": false   // Ensure .vscode folder isn't hidden (optional)

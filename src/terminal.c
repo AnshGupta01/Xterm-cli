@@ -1,175 +1,219 @@
-#include "../include/myterm.h"
+#include "xterm.h"
 
-// Global variables for signal handling
-extern Terminal *g_terminal;
-static volatile sig_atomic_t interrupted = 0;
-
-Terminal* create_terminal(void) {
+Terminal* create_new_terminal() {
     Terminal *term = malloc(sizeof(Terminal));
     if (!term) return NULL;
-
-    // Initialize terminal structure
+    
     memset(term, 0, sizeof(Terminal));
-    term->current_tab = 0;
-    term->num_tabs = 0;
+    
+    for (int i = 0; i < MAX_TABS; i++) {
+        term->tabs[i].is_active = 0;
+        term->tabs[i].shell_process_id = -1;
+        term->tabs[i].input_pipe[0] = term->tabs[i].input_pipe[1] = -1;
+        term->tabs[i].output_pipe[0] = term->tabs[i].output_pipe[1] = -1;
+        term->tabs[i].display_buffer[0] = '\0';
+        term->tabs[i].current_command[0] = '\0';
+        term->tabs[i].cursor_position = 0;
+    }
+    
+    term->current_tab_index = 0;
+    term->total_tabs = 0;
     term->history_count = 0;
-    term->history_pos = 0;
+    term->history_position = 0;
     term->search_mode = 0;
-
+    
+    // Load history from file on startup
+    load_history_from_file(term);
+    
     return term;
 }
 
-void cleanup_terminal(Terminal *term) {
+void cleanup_terminal_resources(Terminal *term) {
     if (!term) return;
-
-    // Close all tabs
-    for (int i = 0; i < term->num_tabs; i++) {
-        close_tab(term, i);
+    
+    // Save history before cleanup
+    save_history_to_file(term);
+    
+    for (int i = 0; i < MAX_TABS; i++) {
+        if (term->tabs[i].is_active) {
+            if (term->tabs[i].shell_process_id > 0) {
+                kill(term->tabs[i].shell_process_id, SIGTERM);
+                waitpid(term->tabs[i].shell_process_id, NULL, 0);
+            }
+            
+            if (term->tabs[i].input_pipe[0] >= 0) close(term->tabs[i].input_pipe[0]);
+            if (term->tabs[i].input_pipe[1] >= 0) close(term->tabs[i].input_pipe[1]);
+            if (term->tabs[i].output_pipe[0] >= 0) close(term->tabs[i].output_pipe[0]);
+            if (term->tabs[i].output_pipe[1] >= 0) close(term->tabs[i].output_pipe[1]);
+        }
     }
-
-    // Clean up X11 resources
-    if (term->font) XFreeFont(term->display, term->font);
-    if (term->gc) XFreeGC(term->display, term->gc);
-    if (term->window) XDestroyWindow(term->display, term->window);
-    if (term->display) XCloseDisplay(term->display);
-
+    
+    if (term->graphics_context) XFreeGC(term->x11_display, term->graphics_context);
+    if (term->x11_window) XDestroyWindow(term->x11_display, term->x11_window);
+    if (term->x11_display) XCloseDisplay(term->x11_display);
+    
     free(term);
 }
 
-void setup_locale(void) {
-    setlocale(LC_ALL, "");
-    setlocale(LC_CTYPE, "en_US.UTF-8");
-}
-
-void init_tab(Terminal *term, int tab_index) {
-    if (tab_index >= MAX_TABS) return;
-
+void initialize_new_tab(Terminal *term, int tab_index) {
+    if (tab_index >= MAX_TABS || tab_index < 0) return;
+    
     Tab *tab = &term->tabs[tab_index];
-    memset(tab, 0, sizeof(Tab));
-
-    tab->active = 1;
-    tab->buffer_pos = 0;
-    tab->cursor_pos = strlen(PROMPT); // Initialize cursor after prompt
-    tab->line_count = 0;
-
-    // Initialize current line with prompt
-    strcpy(tab->current_line, PROMPT);
-
-    // Create pipes for communication with shell process
-    if (pipe(tab->pipe_in) == -1 || pipe(tab->pipe_out) == -1) {
-        perror("pipe");
+    
+    tab->is_active = 1;
+    tab->shell_process_id = -1;
+    tab->display_buffer[0] = '\0';
+    strcpy(tab->current_command, "user@myterm> ");
+    tab->cursor_position = strlen(tab->current_command);
+    
+    if (pipe(tab->input_pipe) == -1 || pipe(tab->output_pipe) == -1) {
+        perror("pipe creation failed");
+        tab->is_active = 0;
         return;
     }
-
-    // Fork shell process
-    tab->shell_pid = fork();
-    if (tab->shell_pid == 0) {
-        // Child process - shell
-        close(tab->pipe_in[1]);  // Close write end of input pipe
-        close(tab->pipe_out[0]); // Close read end of output pipe
-
-        // Redirect stdin and stdout to pipes
-        dup2(tab->pipe_in[0], STDIN_FILENO);
-        dup2(tab->pipe_out[1], STDOUT_FILENO);
-        dup2(tab->pipe_out[1], STDERR_FILENO);
-
-        // Close unused pipe ends
-        close(tab->pipe_in[0]);
-        close(tab->pipe_out[1]);
-
-        // Execute shell
-        execl("/bin/sh", "sh", NULL);
+    
+    tab->shell_process_id = fork();
+    
+    if (tab->shell_process_id == 0) {
+        // Child process
+        dup2(tab->input_pipe[0], STDIN_FILENO);
+        close(tab->input_pipe[0]);
+        close(tab->input_pipe[1]);
+        
+        dup2(tab->output_pipe[1], STDOUT_FILENO);
+        dup2(tab->output_pipe[1], STDERR_FILENO);
+        close(tab->output_pipe[0]);
+        close(tab->output_pipe[1]);
+        
+        execlp("bash", "bash", "--norc", "--noprofile", NULL);
         exit(1);
-    } else if (tab->shell_pid > 0) {
+        
+    } else if (tab->shell_process_id > 0) {
         // Parent process
-        close(tab->pipe_in[0]);  // Close read end of input pipe  
-        close(tab->pipe_out[1]); // Close write end of output pipe
-
-        // Make pipes non-blocking
-        fcntl(tab->pipe_out[0], F_SETFL, O_NONBLOCK);
-        fcntl(tab->pipe_in[1], F_SETFL, O_NONBLOCK);
+        close(tab->input_pipe[0]);
+        close(tab->output_pipe[1]);
+        
+        fcntl(tab->output_pipe[0], F_SETFL, O_NONBLOCK);
+        
+        printf("Created tab %d with shell process %d\n", tab_index, tab->shell_process_id);
+        
+    } else {
+        perror("fork failed");
+        tab->is_active = 0;
+        close(tab->input_pipe[0]);
+        close(tab->input_pipe[1]);
+        close(tab->output_pipe[0]);
+        close(tab->output_pipe[1]);
     }
 }
 
-void switch_tab(Terminal *term, int tab_index) {
-    if (tab_index >= 0 && tab_index < term->num_tabs && 
-        term->tabs[tab_index].active) {
-        term->current_tab = tab_index;
-        draw_terminal(term);
+void switch_to_tab(Terminal *term, int tab_index) {
+    if (tab_index >= 0 && tab_index < MAX_TABS && 
+        tab_index < term->total_tabs && term->tabs[tab_index].is_active) {
+        term->current_tab_index = tab_index;
+        draw_terminal_window(term);
     }
 }
 
-void create_new_tab(Terminal *term) {
-    if (term->num_tabs >= MAX_TABS) return;
-
-    int new_tab = term->num_tabs++;
-    init_tab(term, new_tab);
-    term->current_tab = new_tab;
-
-    draw_terminal(term);
-}
-
-void close_tab(Terminal *term, int tab_index) {
-    if (tab_index >= term->num_tabs || !term->tabs[tab_index].active) return;
-
-    Tab *tab = &term->tabs[tab_index];
-
-    // Kill shell process
-    if (tab->shell_pid > 0) {
-        kill(tab->shell_pid, SIGTERM);
-        waitpid(tab->shell_pid, NULL, 0);
+void close_current_tab(Terminal *term) {
+    int current_index = term->current_tab_index;
+    Tab *current_tab = &term->tabs[current_index];
+    
+    if (!current_tab->is_active) return;
+    
+    if (current_tab->shell_process_id > 0) {
+        kill(current_tab->shell_process_id, SIGTERM);
+        usleep(100000);
+        
+        if (kill(current_tab->shell_process_id, 0) == 0) {
+            kill(current_tab->shell_process_id, SIGKILL);
+        }
+        waitpid(current_tab->shell_process_id, NULL, 0);
     }
-
-    // Close pipes
-    if (tab->pipe_in[1] >= 0) close(tab->pipe_in[1]);
-    if (tab->pipe_out[0] >= 0) close(tab->pipe_out[0]);
-
-    tab->active = 0;
-
-    // If this was the current tab, switch to another
-    if (term->current_tab == tab_index) {
-        for (int i = 0; i < term->num_tabs; i++) {
-            if (term->tabs[i].active) {
-                term->current_tab = i;
-                break;
-            }
+    
+    if (current_tab->input_pipe[1] >= 0) close(current_tab->input_pipe[1]);
+    if (current_tab->output_pipe[0] >= 0) close(current_tab->output_pipe[0]);
+    
+    current_tab->is_active = 0;
+    current_tab->shell_process_id = -1;
+    
+    int next_tab = -1;
+    for (int i = 0; i < term->total_tabs; i++) {
+        if (term->tabs[i].is_active) {
+            next_tab = i;
+            break;
         }
     }
-}
-
-void append_to_buffer(Terminal *term, const char *text) {
-    Tab *tab = &term->tabs[term->current_tab];
-    int len = strlen(text);
-
-    if (tab->buffer_pos + len < BUFFER_SIZE - 1) {
-        strcpy(tab->buffer + tab->buffer_pos, text);
-        tab->buffer_pos += len;
-        tab->line_count++;
+    
+    if (next_tab == -1) {
+        cleanup_terminal_resources(term);
+        printf("All tabs closed. Exiting MyTerm.\n");
+        exit(0);
+    } else {
+        term->current_tab_index = next_tab;
+        draw_terminal_window(term);
     }
 }
 
-void clear_current_line(Terminal *term) {
-    Tab *tab = &term->tabs[term->current_tab];
-    memset(tab->current_line, 0, sizeof(tab->current_line));
-    strcpy(tab->current_line, PROMPT);
-    tab->cursor_pos = strlen(PROMPT);
+void add_text_to_buffer(Tab *tab, char *text) {
+    if (!tab || !text) return;
+    
+    int text_length = strlen(text);
+    int buffer_length = strlen(tab->display_buffer);
+    
+    if (buffer_length + text_length >= MAX_BUFFER_SIZE - 100) {
+        int remove_amount = MAX_BUFFER_SIZE / 3;
+        memmove(tab->display_buffer, 
+                tab->display_buffer + remove_amount, 
+                buffer_length - remove_amount + 1);
+        buffer_length = strlen(tab->display_buffer);
+    }
+    
+    if (buffer_length + text_length < MAX_BUFFER_SIZE - 1) {
+        strcat(tab->display_buffer, text);
+    }
 }
 
-void move_cursor_start(Terminal *term) {
-    Tab *tab = &term->tabs[term->current_tab];
-    tab->cursor_pos = strlen(PROMPT);
+void add_command_to_history(Terminal *term, char *command) {
+    if (!command || strlen(command) == 0) return;
+    
+    // Don't add duplicate commands
+    if (term->history_count > 0 && 
+        strcmp(term->command_history[term->history_count - 1], command) == 0) {
+        return;
+    }
+    
+    // Ensure we don't exceed MAX_HISTORY (10000)
+    if (term->history_count >= MAX_HISTORY) {
+        // Shift history array left by half to make room
+        int shift_amount = MAX_HISTORY / 2;
+        for (int i = 0; i < MAX_HISTORY - shift_amount; i++) {
+            strcpy(term->command_history[i], term->command_history[i + shift_amount]);
+        }
+        term->history_count = MAX_HISTORY - shift_amount;
+    }
+    
+    strncpy(term->command_history[term->history_count], command, MAX_CMD_LEN - 1);
+    term->command_history[term->history_count][MAX_CMD_LEN - 1] = '\0';
+    term->history_count++;
+    
+    term->history_position = term->history_count;
 }
 
-void move_cursor_end(Terminal *term) {
-    Tab *tab = &term->tabs[term->current_tab];
-    tab->cursor_pos = strlen(tab->current_line);
-}
-
-void debug_print(const char *format, ...) {
-    #ifdef DEBUG
-    va_list args;
-    va_start(args, format);
-    vfprintf(stderr, format, args);
-    va_end(args);
-    #endif
+char* trim_whitespace(char *str) {
+    if (!str) return str;
+    
+    while (*str && (*str == ' ' || *str == '\t' || *str == '\n' || *str == '\r')) {
+        str++;
+    }
+    
+    if (*str == 0) return str;
+    
+    char *end = str + strlen(str) - 1;
+    while (end > str && (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r')) {
+        *end = '\0';
+        end--;
+    }
+    
+    return str;
 }

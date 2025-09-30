@@ -2,54 +2,61 @@
 
 A feature-rich terminal emulator built with X11, implementing advanced shell functionality including tabs, history, autocomplete, and multi-command monitoring.
 
-## Features
+## Project Structure
+```
+XTerm/
+├── src/
+│   ├── main.c          # Main program entry point
+│   ├── terminal.c      # Core terminal management
+│   ├── gui.c           # X11 GUI functions
+│   ├── commands.c       # Command processing
+├── include/
+│   └── xterm.h        # Header file with all declarations
+├── build/              # Object files (created during build)
+├── Makefile           # Build system
+└── README.md          # This file
+```
 
-- **Phase 1**: Basic X11 terminal window with text rendering
-- **Phase 2**: Shell process integration with pipes
-- **Phase 3**: Built-in commands and working directory management
-- **Phase 4**: Multiline Unicode input support
-- **Phase 5**: I/O redirection (< > >>)
-- **Phase 6**: Multi-stage pipelines
-- **Phase 7**: Line editing (Ctrl+A, Ctrl+E)
-- **Phase 8**: Signal handling (Ctrl+C, Ctrl+Z)
-- **Phase 9**: Searchable command history (Ctrl+R)
-- **Phase 10**: Multiple shell tabs
-- **Phase 11**: Filename autocomplete (Tab)
-- **Phase 12**: MultiWatch command for parallel monitoring
+## Features Implemented
 
-## Build && Run Instructions
+1. **X11 Graphical Interface** - Basic window with tabs
+2. **Multiple Tabs** - Up to 3 tabs, switch with clicks or Ctrl+T
+3. **Command Execution** - Executes external commands via shell
+4. **Built-in Commands**:
+   - `history` - Shows command history 
+   - `exit` - Closes current tab
+   - `multiWatch [\"cmd1\", \"cmd2\"]` - Parallel command execution
+   - `Tab`: Auto-complete filenames
+5. **Basic Navigation**:
+   - `Ctrl+A` - Move to start of line
+   - `Ctrl+E` - Move to end of line
+   - `Ctrl+R` - Search history
+   - `Ctrl+C` - Interrupt command
+   - `Ctrl+T` - New tab
+   - `Ctrl+W` - Close current tab
+   - `Ctrl+Z`: Suspend command (move to background)
+   - `Left/Right`: Move cursor character by character
+   - `Up/Down`: Browse command history
 
-`git clone <repository> && cd xterm-project && make && ./xterm`
-
-
-## Usage
-
-### Basic Commands
+## Basic Commands
 - All standard shell commands work
 - Built-ins: `cd`, `pwd`, `clear`, `exit`, `history`
 - I/O redirection: `cmd < input > output`
 - Pipelines: `cmd1 | cmd2 | cmd3`
 
-### Key Bindings
-- **`Ctrl+A`**: Move to beginning of line
-- **`Ctrl+E`**: Move to end of line
-- **`Ctrl+C`**: Interrupt foreground process
-- **`Ctrl+Z`**: Suspend foreground process
-- **`Ctrl+R`**: Search command history
-- **`Tab`**: Autocomplete filenames
+## Build && Run Instructions
+`git clone <repository> && cd xterm-project && make && ./xterm`
 
-### MultiWatch
-`multiwatch ["ls -la","ps aux","date"]`
-
-Monitors multiple commands in parallel with timestamped output.
-
-### Tabs
-- Click on tab headers to switch
-- New tabs create independent shell sessions
-- Each tab maintains separate history and state
+## Files
+- `xterm.h` - Header with all declarations
+- `main.c` - Entry point
+- `terminal.c` - Core terminal logic and tab management
+- `gui.c` - X11 GUI handling and event processing  
+- `commands.c` - Command execution and built-ins
+- `Makefile` - Build configuration
 
 ## Requirements
-
-- X11 development libraries
-- GCC or compatible C compiler
-- POSIX-compliant system (Linux/macOS/BSD)
+- **macOS** (tested on macOS 10.14+)
+- **XQuartz** - X11 server for macOS
+- **Xcode Command Line Tools** - For compilation
+- **Homebrew** (optional, for easy XQuartz installation)

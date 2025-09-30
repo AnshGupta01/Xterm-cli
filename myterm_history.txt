@@ -1,0 +1,55 @@
+# MyTerm Command History
+# Generated on: Tue Sep 30 14:27:25 2025
+kyu
+hello
+pwd
+ls
+history
+ls
+history
+multiwatch ["ls", "pwd"]
+multiWatch ["ls", "pwd"]
+exit
+l
+multiWatch ["ls", "pwd"]
+ls
+pwd
+huh
+clear
+ls
+pwd
+multiWatch ["ls", "pwd"]
+pwd
+multiWatch ["ls", "pwd"]
+sleep 10
+multiWatch ["date", "uptime"]
+pwd
+ls
+history
+ls
+pwd
+hello
+echo hi
+echo pwd
+date
+time
+history
+history | less
+history
+history less
+history 1000
+history | 1000
+history | less
+multiWatch ["date", "uptime"]
+history
+clear
+history
+multiWatch ["date", "uptime"]
+ls
+pwd
+multiWatch ["date", "uptime"]
+exit
+history
+ls
+history
+exit

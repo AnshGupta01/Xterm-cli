@@ -1,39 +1,37 @@
-#include "../include/myterm.h"
+#include "xterm.h"
 
-// Global terminal instance for signal handling
 Terminal *g_terminal = NULL;
 
 int main() {
-    // Set up locale for Unicode support
-    setup_locale();
-
+    // Setup unicode support
+    setlocale(LC_ALL, "");
+    
+    printf("Starting MyTerm - CS69201 Project\n");
+    
     // Create terminal instance
-    g_terminal = create_terminal();
+    g_terminal = create_new_terminal();
     if (!g_terminal) {
-        fprintf(stderr, "Failed to create terminal\n");
+        printf("Error: Failed to create terminal\n");
         return 1;
     }
-
-    // Load command history from file
-    load_history_from_file(g_terminal);
-
+    
+    // Setup signal handlers for Ctrl+C, Ctrl+Z
+    setup_signal_handlers();
+    
     // Initialize X11 GUI
-    init_x11(g_terminal);
-
-    // Setup signal handlers
-    setup_signal_handlers(g_terminal);
-
-    // Create initial tab
-    create_new_tab(g_terminal);
-
-    printf("MyTerm initialized successfully. Use XQuartz for display.\n");
-    printf("Starting main event loop...\n");
-
-    // Main event loop
+    setup_x11_gui(g_terminal);
+    
+    // Create first tab
+    initialize_new_tab(g_terminal, 0);
+    g_terminal->total_tabs = 1;
+    g_terminal->current_tab_index = 0;
+    
+    printf("MyTerm initialized successfully\n");
+    
+    // Start main event loop
     handle_x11_events(g_terminal);
-
-    // Cleanup
-    save_history_to_file(g_terminal);
-    cleanup_terminal(g_terminal);
+    
+    // Cleanup and exit
+    cleanup_terminal_resources(g_terminal);
     return 0;
 }
