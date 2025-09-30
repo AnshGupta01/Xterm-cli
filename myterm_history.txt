@@ -1,5 +1,5 @@
 # MyTerm Command History
-# Generated on: Tue Sep 30 23:03:10 2025
+# Generated on: Wed Oct  1 01:23:29 2025
 kyu
 hello
 pwd
@@ -104,3 +104,4 @@ multiWatch ["pwd","ls"]
 echo "हम"
 exit
 echo "हम हंदी में नमस्ते कहते हैं"
+exit

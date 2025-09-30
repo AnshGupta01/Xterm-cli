@@ -12,10 +12,13 @@ XTerm/
 │   ├── commands.c       # Command processing
 ├── include/
 │   └── xterm.h        # Header file with all declarations
-├── build/              # Object files (created during build)
+├── build/              # Object files (will be hidden thanks to .vscode)
 ├── Makefile           # Build system
 └── README.md          # This file
 ```
+## Build and Run Instructions
+`git clone https://github.com/AnshGupta01/Xterm-project` -> `cd xterm-project`
+-> `make clean && make && make run`
 
 ## Features Implemented
 
@@ -44,9 +47,6 @@ XTerm/
 - Built-ins: `cd`, `pwd`, `clear`, `exit`, `history`
 - I/O redirection: `cmd < input > output`
 - Pipelines: `cmd1 | cmd2 | cmd3`
-
-## Build && Run Instructions
-`git clone <repository> && cd xterm-project && make && ./xterm`
 
 ## Files
 - `xterm.h` - Header with all declarations
