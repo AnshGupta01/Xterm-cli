@@ -22,12 +22,13 @@ XTerm/
 1. **X11 Graphical Interface** - Basic window with tabs
 2. **Multiple Tabs** - Up to 3 tabs, switch with clicks or Ctrl+T
 3. **Command Execution** - Executes external commands via shell
-4. **Built-in Commands**:
+4. **Unicode Support**
+5. **Built-in Commands**:
    - `history` - Shows command history 
    - `exit` - Closes current tab
    - `multiWatch [\"cmd1\", \"cmd2\"]` - Parallel command execution
    - `Tab`: Auto-complete filenames
-5. **Basic Navigation**:
+6. **Basic Navigation**:
    - `Ctrl+A` - Move to start of line
    - `Ctrl+E` - Move to end of line
    - `Ctrl+R` - Search history
