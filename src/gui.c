@@ -1,255 +1,124 @@
 #include "xterm.h"
 
-void setup_x11_gui(Terminal *term) {
-    term->x11_display = XOpenDisplay(NULL);
-    if (!term->x11_display) {
-        printf("Error: Cannot open X11 display. Make sure XQuartz is running.\n");
-        exit(1);
-    }
-    
-    int screen = DefaultScreen(term->x11_display);
-    
-    term->x11_window = XCreateSimpleWindow(
-        term->x11_display,
-        RootWindow(term->x11_display, screen),
-        100, 100, WINDOW_WIDTH, WINDOW_HEIGHT, 2,
-        BlackPixel(term->x11_display, screen), WhitePixel(term->x11_display, screen)
-    );
-    
-    XStoreName(term->x11_display, term->x11_window, "MyTerm - CS69201 Project");
-    term->graphics_context = XCreateGC(term->x11_display, term->x11_window, 0, NULL);
-    XSetForeground(term->x11_display, term->graphics_context, BlackPixel(term->x11_display, screen));
-    XSelectInput(term->x11_display, term->x11_window, ExposureMask | KeyPressMask | ButtonPressMask);
-    XMapWindow(term->x11_display, term->x11_window);
-    XFlush(term->x11_display);
-    
-    printf("X11 GUI initialized successfully\n");
-}
-
+/* Draw all visible UI: tabs, buffer (auto-scroll), prompt, input, cursor */
 void draw_terminal_window(Terminal *term) {
     XClearWindow(term->x11_display, term->x11_window);
-    
-    // Draw tab headers
+
+    /* Tabs */
     int tab_width = WINDOW_WIDTH / MAX_TABS;
     for (int i = 0; i < MAX_TABS; i++) {
-        int x_position = i * tab_width;
-        char tab_label[32];
-        snprintf(tab_label, sizeof(tab_label), "Tab %d", i + 1);
-        
+        int x = i * tab_width;
+        char label[32];
+        snprintf(label, sizeof(label), "Tab %d", i + 1);
+
         if (i < term->total_tabs && term->tabs[i].is_active) {
             if (i == term->current_tab_index) {
                 XFillRectangle(term->x11_display, term->x11_window, term->graphics_context,
-                              x_position + 1, 1, tab_width - 2, 24);
+                               x + 1, 1, tab_width - 2, 24);
                 XSetForeground(term->x11_display, term->graphics_context,
-                              WhitePixel(term->x11_display, DefaultScreen(term->x11_display)));
+                               WhitePixel(term->x11_display, DefaultScreen(term->x11_display)));
                 XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                           x_position + 10, 16, tab_label, strlen(tab_label));
+                            x + 10, 16, label, strlen(label));
                 XSetForeground(term->x11_display, term->graphics_context,
-                              BlackPixel(term->x11_display, DefaultScreen(term->x11_display)));
+                               BlackPixel(term->x11_display, DefaultScreen(term->x11_display)));
             } else {
                 XDrawRectangle(term->x11_display, term->x11_window, term->graphics_context,
-                              x_position, 0, tab_width, 25);
+                               x, 0, tab_width, 25);
                 XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                           x_position + 10, 16, tab_label, strlen(tab_label));
+                            x + 10, 16, label, strlen(label));
             }
         }
     }
-    
-    // Draw content of current tab with AUTO-SCROLLING
-    if (term->current_tab_index < term->total_tabs && 
+
+    /* Buffer with auto-scrolling */
+    if (term->current_tab_index < term->total_tabs &&
         term->tabs[term->current_tab_index].is_active) {
-        
-        Tab *current_tab = &term->tabs[term->current_tab_index];
-        
-        // Calculate display area
-        int display_start_y = 50;
-        int display_end_y = WINDOW_HEIGHT - 80;
-        int line_height = 16;
-        int max_display_lines = (display_end_y - display_start_y) / line_height;
-        
-        // Split buffer into lines with auto-scrolling
-        char *buffer_copy = malloc(strlen(current_tab->display_buffer) + 1);
-        if (buffer_copy) {
-            strcpy(buffer_copy, current_tab->display_buffer);
-            
+
+        Tab *cur = &term->tabs[term->current_tab_index];
+        int y0 = 50, y1 = WINDOW_HEIGHT - 80, lh = 16;
+        int max_lines = (y1 - y0) / lh;
+
+        char *copy = malloc(strlen(cur->display_buffer) + 1);
+        if (copy) {
+            strcpy(copy, cur->display_buffer);
+
             char *lines[1000];
-            int total_lines = 0;
-            
-            char *line_start = buffer_copy;
-            char *newline_pos;
-            
-            while (line_start && *line_start && total_lines < 1000) {
-                newline_pos = strchr(line_start, '\n');
-                
-                if (newline_pos) {
-                    *newline_pos = '\0';
-                    lines[total_lines] = line_start;
-                    total_lines++;
-                    line_start = newline_pos + 1;
+            int n = 0;
+            char *p = copy;
+            while (p && *p && n < 1000) {
+                char *nl = strchr(p, '\n');
+                if (nl) {
+                    *nl = '\0';
+                    lines[n++] = p;
+                    p = nl + 1;
                 } else {
-                    if (strlen(line_start) > 0) {
-                        lines[total_lines] = line_start;
-                        total_lines++;
-                    }
+                    if (*p) lines[n++] = p;
                     break;
                 }
             }
-            
-            // AUTOMATIC SCROLLING: Show last N lines that fit on screen
-            int start_line = (total_lines > max_display_lines) ? 
-                            total_lines - max_display_lines : 0;
-            
-            int y_position = display_start_y;
-            for (int i = start_line; i < total_lines && y_position < display_end_y; i++) {
-                int line_length = strlen(lines[i]);
-                if (line_length > 0 && line_length < 200) {
+
+            int start = (n > max_lines) ? (n - max_lines) : 0;
+            int y = y0;
+            for (int i = start; i < n && y < y1; i++) {
+                int len = strlen(lines[i]);
+                if (len > 0 && len < 200) {
                     XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                               10, y_position, lines[i], line_length);
+                                10, y, lines[i], len);
                 }
-                y_position += line_height;
+                y += lh;
             }
-            
-            free(buffer_copy);
+            free(copy);
         }
-        
-        // Draw current command input line at bottom with COLORED PROMPT
+
+        /* Prompt + input */
         int input_y = WINDOW_HEIGHT - 30;
-        
-        // Draw "user@myterm> " in blue color
         XSetForeground(term->x11_display, term->graphics_context, 0x0066CC);
         char prompt[] = "user@myterm> ";
         XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                   10, input_y, prompt, strlen(prompt));
-        
-        // Draw user input in black color
+                    10, input_y, prompt, strlen(prompt));
+
         XSetForeground(term->x11_display, term->graphics_context,
-                      BlackPixel(term->x11_display, DefaultScreen(term->x11_display)));
-        
-        int user_input_start = strlen(prompt);
-        if (strlen(current_tab->current_command) > user_input_start) {
-            char *user_text = current_tab->current_command + user_input_start;
+                       BlackPixel(term->x11_display, DefaultScreen(term->x11_display)));
+
+        int pfx = strlen(prompt);
+        if (strlen(cur->current_command) > pfx) {
+            char *txt = cur->current_command + pfx;
             XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                       10 + (user_input_start * 6), input_y, user_text, strlen(user_text));
+                        10 + (pfx * 6), input_y, txt, strlen(txt));
         }
-        
-        // Draw cursor
-        int cursor_x = 10 + (current_tab->cursor_position * 6);
+
+        /* Cursor */
+        int cx = 10 + (cur->cursor_position * 6);
         XDrawLine(term->x11_display, term->x11_window, term->graphics_context,
-                 cursor_x, input_y - 12, cursor_x, input_y + 2);
+                  cx, input_y - 12, cx, input_y + 2);
     }
-    
+
     XFlush(term->x11_display);
 }
 
-void handle_x11_events(Terminal *term) {
-    XEvent event;
-    fd_set file_descriptors;
-    int x11_connection_fd = ConnectionNumber(term->x11_display);
-    struct timeval timeout;
-    
-    while (1) {
-        // Process all pending X11 events
-        while (XPending(term->x11_display)) {
-            XNextEvent(term->x11_display, &event);
-            
-            switch (event.type) {
-                case Expose:
-                    draw_terminal_window(term);
-                    break;
-                    
-                case KeyPress:
-                    process_keyboard_input(term, &event.xkey);
-                    draw_terminal_window(term);
-                    break;
-                    
-                case ButtonPress:
-                    if (event.xbutton.y < 25) {
-                        int tab_width = WINDOW_WIDTH / MAX_TABS;
-                        int clicked_tab = event.xbutton.x / tab_width;
-                        
-                        if (clicked_tab < term->total_tabs && clicked_tab >= 0 && 
-                            term->tabs[clicked_tab].is_active) {
-                            switch_to_tab(term, clicked_tab);
-                        }
-                    }
-                    break;
-            }
-        }
-        
-        // Check for output from shell processes
-        FD_ZERO(&file_descriptors);
-        FD_SET(x11_connection_fd, &file_descriptors);
-        int max_fd = x11_connection_fd;
-        
-        for (int i = 0; i < term->total_tabs; i++) {
-            if (term->tabs[i].is_active && term->tabs[i].output_pipe[0] >= 0) {
-                FD_SET(term->tabs[i].output_pipe[0], &file_descriptors);
-                if (term->tabs[i].output_pipe[0] > max_fd) {
-                    max_fd = term->tabs[i].output_pipe[0];
-                }
-            }
-        }
-        
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 20000;
-        
-        int select_result = select(max_fd + 1, &file_descriptors, NULL, NULL, &timeout);
-        
-        if (select_result > 0) {
-            for (int i = 0; i < term->total_tabs; i++) {
-                if (term->tabs[i].is_active && term->tabs[i].output_pipe[0] >= 0 &&
-                    FD_ISSET(term->tabs[i].output_pipe[0], &file_descriptors)) {
-                    
-                    char output_buffer[256];
-                    ssize_t bytes_read = read(term->tabs[i].output_pipe[0], 
-                                             output_buffer, sizeof(output_buffer) - 1);
-                    
-                    if (bytes_read > 0) {
-                        output_buffer[bytes_read] = '\0';
-                        add_text_to_buffer(&term->tabs[i], output_buffer);
-                        
-                        if (i == term->current_tab_index) {
-                            draw_terminal_window(term);
-                        }
-                    } else if (bytes_read == 0) {
-                        close(term->tabs[i].output_pipe[0]);
-                        term->tabs[i].output_pipe[0] = -1;
-                    }
-                }
-            }
-        }
-        
-        // CRITICAL: Check multiwatch output every loop iteration
-        check_multiwatch_output(term);
-        if (multiwatch_active) {
-            draw_terminal_window(term);
-        }
-    }
-}
-
+/* Keyboard handling: editing, history nav, search mode, tab mgmt, signals, autocomplete */
 void process_keyboard_input(Terminal *term, XKeyEvent *event) {
-    if (term->current_tab_index >= term->total_tabs || 
+    if (term->current_tab_index >= term->total_tabs ||
         !term->tabs[term->current_tab_index].is_active) {
         return;
     }
-    
-    Tab *current_tab = &term->tabs[term->current_tab_index];
-    KeySym key_symbol = XLookupKeysym(event, 0);
-    
-    // Handle Control key combinations
+
+    Tab *cur = &term->tabs[term->current_tab_index];
+    KeySym ks = XLookupKeysym(event, 0);
+
+    /* Control combos */
     if (event->state & ControlMask) {
-        switch (key_symbol) {
+        switch (ks) {
             case XK_c:
-                // Ctrl+C - Handle multiWatch interruption FIRST
+                /* Break multiWatch first */
                 if (multiwatch_active) {
-                    // Drain any remaining output before killing
                     for (int i = 0; i < multiwatch_count; i++) {
                         if (multiwatch_pipes[i] >= 0) {
                             char buf[512];
                             ssize_t n;
-                            while ((n = read(multiwatch_pipes[i], buf, sizeof(buf)-1)) > 0) {
+                            while ((n = read(multiwatch_pipes[i], buf, sizeof(buf) - 1)) > 0) {
                                 buf[n] = '\0';
-                                add_text_to_buffer(current_tab, buf);
+                                add_text_to_buffer(cur, buf);
                             }
                             close(multiwatch_pipes[i]);
                             multiwatch_pipes[i] = -1;
@@ -263,41 +132,37 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
                     multiwatch_active = 0;
                     multiwatch_count = 0;
                     term->multiwatch_running = 0;
-                    
-                    add_text_to_buffer(current_tab, "\nmultiWatch interrupted by Ctrl+C\n");
-                    strcpy(current_tab->current_command, "user@myterm> ");
-                    current_tab->cursor_position = strlen(current_tab->current_command);
+
+                    add_text_to_buffer(cur, "\nmultiWatch interrupted by Ctrl+C\n");
+                    strcpy(cur->current_command, "user@myterm> ");
+                    cur->cursor_position = strlen(cur->current_command);
                     return;
                 }
-                
-                // Normal Ctrl+C for shell
-                if (current_tab->shell_process_id > 0) {
-                    kill(current_tab->shell_process_id, SIGINT);
-                }
+                if (cur->shell_process_id > 0) kill(cur->shell_process_id, SIGINT);
                 return;
-                
+
             case XK_z:
-                if (current_tab->shell_process_id > 0) {
-                    kill(current_tab->shell_process_id, SIGTSTP);
-                    add_text_to_buffer(current_tab, "\n[Process suspended - use 'fg' to resume]\n");
+                if (cur->shell_process_id > 0) {
+                    kill(cur->shell_process_id, SIGTSTP);
+                    add_text_to_buffer(cur, "\n[Process suspended - use 'fg' to resume]\n");
                 }
                 return;
-                
+
             case XK_a:
-                current_tab->cursor_position = strlen("user@myterm> ");
+                cur->cursor_position = strlen("user@myterm> ");
                 return;
-                
+
             case XK_e:
-                current_tab->cursor_position = strlen(current_tab->current_command);
+                cur->cursor_position = strlen(cur->current_command);
                 return;
-                
+
             case XK_r:
                 term->search_mode = 1;
-                strcpy(current_tab->current_command, "Search: ");
-                current_tab->cursor_position = strlen(current_tab->current_command);
+                strcpy(cur->current_command, "Search: ");
+                cur->cursor_position = strlen(cur->current_command);
                 term->search_term[0] = '\0';
                 return;
-                
+
             case XK_t:
                 if (term->total_tabs < MAX_TABS) {
                     initialize_new_tab(term, term->total_tabs);
@@ -309,125 +174,114 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
                 return;
         }
     }
-    
-    // Handle special keys
-    switch (key_symbol) {
+
+    /* Special keys */
+    switch (ks) {
         case XK_Return:
-        case XK_KP_Enter:
+        case XK_KP_Enter: {
             if (term->search_mode) {
                 builtin_search_history(term);
                 term->search_mode = 0;
             } else {
-                int prompt_length = strlen("user@myterm> ");
-                if (strlen(current_tab->current_command) > prompt_length) {
-                    char command[MAX_CMD_LEN];
-                    strcpy(command, current_tab->current_command + prompt_length);
-                    execute_user_command(term, command);
+                int pl = strlen("user@myterm> ");
+                if (strlen(cur->current_command) > pl) {
+                    char cmd[MAX_CMD_LEN];
+                    strcpy(cmd, cur->current_command + pl);
+                    execute_user_command(term, cmd);
                 }
-                
-                strcpy(current_tab->current_command, "user@myterm> ");
-                current_tab->cursor_position = strlen(current_tab->current_command);
+                strcpy(cur->current_command, "user@myterm> ");
+                cur->cursor_position = strlen(cur->current_command);
             }
             break;
-            
+        }
+
         case XK_BackSpace: {
-            int prompt_length = term->search_mode ? strlen("Search: ") : strlen("user@myterm> ");
-            if (current_tab->cursor_position > prompt_length) {
-                int command_length = strlen(current_tab->current_command);
-                
-                for (int i = current_tab->cursor_position - 1; i < command_length; i++) {
-                    current_tab->current_command[i] = current_tab->current_command[i + 1];
+            int pl = term->search_mode ? strlen("Search: ")
+                                       : strlen("user@myterm> ");
+            if (cur->cursor_position > pl) {
+                int L = strlen(cur->current_command);
+                for (int i = cur->cursor_position - 1; i < L; i++) {
+                    cur->current_command[i] = cur->current_command[i + 1];
                 }
-                current_tab->cursor_position--;
-                
+                cur->cursor_position--;
                 if (term->search_mode) {
-                    int search_length = strlen(term->search_term);
-                    if (search_length > 0) {
-                        term->search_term[search_length - 1] = '\0';
-                    }
+                    int sl = strlen(term->search_term);
+                    if (sl > 0) term->search_term[sl - 1] = '\0';
                 }
             }
             break;
         }
-            
+
         case XK_Left: {
-            int prompt_length = term->search_mode ? strlen("Search: ") : strlen("user@myterm> ");
-            if (current_tab->cursor_position > prompt_length) {
-                current_tab->cursor_position--;
-            }
+            int pl = term->search_mode ? strlen("Search: ")
+                                       : strlen("user@myterm> ");
+            if (cur->cursor_position > pl) cur->cursor_position--;
             break;
         }
-            
+
         case XK_Right:
-            if (current_tab->cursor_position < strlen(current_tab->current_command)) {
-                current_tab->cursor_position++;
-            }
+            if (cur->cursor_position < strlen(cur->current_command)) cur->cursor_position++;
             break;
-            
+
         case XK_Up:
             if (!term->search_mode && term->history_count > 0) {
-                if (term->history_position > 0) {
-                    term->history_position--;
-                }
-                snprintf(current_tab->current_command, MAX_CMD_LEN,
-                        "user@myterm> %s", term->command_history[term->history_position]);
-                current_tab->cursor_position = strlen(current_tab->current_command);
+                if (term->history_position > 0) term->history_position--;
+                snprintf(cur->current_command, MAX_CMD_LEN,
+                         "user@myterm> %s",
+                         term->command_history[term->history_position]);
+                cur->cursor_position = strlen(cur->current_command);
             }
             break;
-            
+
         case XK_Down:
             if (!term->search_mode && term->history_count > 0) {
                 if (term->history_position < term->history_count - 1) {
                     term->history_position++;
-                    snprintf(current_tab->current_command, MAX_CMD_LEN,
-                            "user@myterm> %s", term->command_history[term->history_position]);
+                    snprintf(cur->current_command, MAX_CMD_LEN,
+                             "user@myterm> %s",
+                             term->command_history[term->history_position]);
                 } else {
-                    strcpy(current_tab->current_command, "user@myterm> ");
+                    strcpy(cur->current_command, "user@myterm> ");
                 }
-                current_tab->cursor_position = strlen(current_tab->current_command);
+                cur->cursor_position = strlen(cur->current_command);
             }
             break;
-            
+
         case XK_Tab:
             if (!term->search_mode) {
-                int prompt_length = strlen("user@myterm> ");
-                if (strlen(current_tab->current_command) > prompt_length) {
-                    char *command_part = current_tab->current_command + prompt_length;
-                    autocomplete_filename(term, command_part);
-                    current_tab->cursor_position = strlen(current_tab->current_command);
+                int pl = strlen("user@myterm> ");
+                if (strlen(cur->current_command) > pl) {
+                    char *part = cur->current_command + pl;
+                    autocomplete_filename(term, part);
+                    cur->cursor_position = strlen(cur->current_command);
                 }
             }
             break;
-            
+
         case XK_Escape:
             if (term->search_mode) {
                 term->search_mode = 0;
-                strcpy(current_tab->current_command, "user@myterm> ");
-                current_tab->cursor_position = strlen(current_tab->current_command);
+                strcpy(cur->current_command, "user@myterm> ");
+                cur->cursor_position = strlen(cur->current_command);
             }
             break;
-            
+
         default: {
-            char character_buffer[10];
-            int characters_typed = XLookupString(event, character_buffer, 
-                                               sizeof(character_buffer) - 1, NULL, NULL);
-            
-            if (characters_typed == 1 && character_buffer[0] >= 32 && character_buffer[0] <= 126) {
-                int command_length = strlen(current_tab->current_command);
-                
-                if (command_length < MAX_CMD_LEN - 2) {
-                    for (int i = command_length; i >= current_tab->cursor_position; i--) {
-                        current_tab->current_command[i + 1] = current_tab->current_command[i];
+            char buf[10];
+            int n = XLookupString(event, buf, sizeof(buf) - 1, NULL, NULL);
+            if (n == 1 && buf[0] >= 32 && buf[0] <= 126) {
+                int L = strlen(cur->current_command);
+                if (L < MAX_CMD_LEN - 2) {
+                    for (int i = L; i >= cur->cursor_position; i--) {
+                        cur->current_command[i + 1] = cur->current_command[i];
                     }
-                    
-                    current_tab->current_command[current_tab->cursor_position] = character_buffer[0];
-                    current_tab->cursor_position++;
-                    
+                    cur->current_command[cur->cursor_position] = buf[0];
+                    cur->cursor_position++;
                     if (term->search_mode) {
-                        int search_length = strlen(term->search_term);
-                        if (search_length < MAX_CMD_LEN - 1) {
-                            term->search_term[search_length] = character_buffer[0];
-                            term->search_term[search_length + 1] = '\0';
+                        int sl = strlen(term->search_term);
+                        if (sl < MAX_CMD_LEN - 1) {
+                            term->search_term[sl] = buf[0];
+                            term->search_term[sl + 1] = '\0';
                         }
                     }
                 }
@@ -435,4 +289,107 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
             break;
         }
     }
+}
+
+/* Event loop: handle X events, read shell pipes via select, and poll multiWatch */
+void handle_x11_events(Terminal *term) {
+    XEvent ev;
+    fd_set rfds;
+    int xfd = ConnectionNumber(term->x11_display);
+    struct timeval tv;
+
+    while (1) {
+        /* Drain all X events */
+        while (XPending(term->x11_display)) {
+            XNextEvent(term->x11_display, &ev);
+            switch (ev.type) {
+                case Expose:
+                    draw_terminal_window(term);
+                    break;
+                case KeyPress:
+                    process_keyboard_input(term, &ev.xkey);
+                    draw_terminal_window(term);
+                    break;
+                case ButtonPress:
+                    if (ev.xbutton.y < 25) {
+                        int tab_w = WINDOW_WIDTH / MAX_TABS;
+                        int clicked = ev.xbutton.x / tab_w;
+                        if (clicked < term->total_tabs && clicked >= 0 &&
+                            term->tabs[clicked].is_active) {
+                            switch_to_tab(term, clicked);
+                        }
+                    }
+                    break;
+            }
+        }
+
+        /* Shell outputs via select */
+        FD_ZERO(&rfds);
+        FD_SET(xfd, &rfds);
+        int maxfd = xfd;
+
+        for (int i = 0; i < term->total_tabs; i++) {
+            if (term->tabs[i].is_active && term->tabs[i].output_pipe[0] >= 0) {
+                FD_SET(term->tabs[i].output_pipe[0], &rfds);
+                if (term->tabs[i].output_pipe[0] > maxfd) maxfd = term->tabs[i].output_pipe[0];
+            }
+        }
+
+        tv.tv_sec = 0;
+        tv.tv_usec = 20000;
+
+        int rc = select(maxfd + 1, &rfds, NULL, NULL, &tv);
+        if (rc > 0) {
+            for (int i = 0; i < term->total_tabs; i++) {
+                if (term->tabs[i].is_active &&
+                    term->tabs[i].output_pipe[0] >= 0 &&
+                    FD_ISSET(term->tabs[i].output_pipe[0], &rfds)) {
+
+                    char obuf[256];
+                    ssize_t n = read(term->tabs[i].output_pipe[0], obuf, sizeof(obuf) - 1);
+                    if (n > 0) {
+                        obuf[n] = '\0';
+                        add_text_to_buffer(&term->tabs[i], obuf);
+                        if (i == term->current_tab_index) draw_terminal_window(term);
+                    } else if (n == 0) {
+                        close(term->tabs[i].output_pipe[0]);
+                        term->tabs[i].output_pipe[0] = -1;
+                    }
+                }
+            }
+        }
+
+        /* Always poll multiWatch and refresh when active */
+        check_multiwatch_output(term);
+        if (multiwatch_active) draw_terminal_window(term);
+    }
+}
+
+/* Initialize X11 window, GC, and input masks */
+void setup_x11_gui(Terminal *term) {
+    term->x11_display = XOpenDisplay(NULL);
+    if (!term->x11_display) {
+        printf("Error: Cannot open X11 display. Make sure XQuartz is running.\n");
+        exit(1);
+    }
+
+    int scr = DefaultScreen(term->x11_display);
+    term->x11_window = XCreateSimpleWindow(
+        term->x11_display,
+        RootWindow(term->x11_display, scr),
+        100, 100, WINDOW_WIDTH, WINDOW_HEIGHT, 2,
+        BlackPixel(term->x11_display, scr),
+        WhitePixel(term->x11_display, scr)
+    );
+
+    XStoreName(term->x11_display, term->x11_window, "MyTerm - CS69201 Project");
+    term->graphics_context = XCreateGC(term->x11_display, term->x11_window, 0, NULL);
+    XSetForeground(term->x11_display, term->graphics_context,
+                   BlackPixel(term->x11_display, scr));
+    XSelectInput(term->x11_display, term->x11_window,
+                 ExposureMask | KeyPressMask | ButtonPressMask);
+    XMapWindow(term->x11_display, term->x11_window);
+    XFlush(term->x11_display);
+
+    printf("X11 GUI initialized successfully\n");
 }

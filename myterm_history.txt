@@ -1,5 +1,5 @@
 # MyTerm Command History
-# Generated on: Tue Oct  7 13:03:24 2025
+# Generated on: Tue Oct  7 13:38:48 2025
 kyu
 hello
 pwd
@@ -129,4 +129,11 @@ exit
 hello
 pwd
 multiWatch["pwd","ls"]
+exit
+pwd
+hello
+multiWatch["pwd","ls"]
+exit
+multiWatch["pwd","ls"]
+CLEAR
 exit
