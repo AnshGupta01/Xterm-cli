@@ -1,5 +1,5 @@
 # XTerm Design Documentation
-This document describes the design and implementation details of MyTerm, a custom terminal emulator with X11 GUI for macOS.
+This document describes the design and implementation details of XTerm, a custom terminal emulator with X11 GUI for macOS.
 
 ## High-Level Design
 

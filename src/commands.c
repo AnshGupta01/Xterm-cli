@@ -35,10 +35,10 @@ void handle_sigtstp(int sig) {
 
 /* Overwrite history file with the current snapshot */
 void save_history_to_file(Terminal *term) {
-    FILE *f = fopen("myterm_history.txt", "w");
+    FILE *f = fopen("xterm_history.txt", "w");
     if (!f) return;
 
-    fprintf(f, "# MyTerm Command History\n");
+    fprintf(f, "# XTerm Command History\n");
     time_t now = time(NULL);
     fprintf(f, "# Generated on: %s", ctime(&now));
 
@@ -50,7 +50,7 @@ void save_history_to_file(Terminal *term) {
 
 /* Load history if file exists; skip comment lines */
 void load_history_from_file(Terminal *term) {
-    FILE *f = fopen("myterm_history.txt", "r");
+    FILE *f = fopen("xterm_history.txt", "r");
     if (!f) return;
 
     char line[MAX_CMD_LEN];
@@ -127,7 +127,7 @@ void builtin_search_history(Terminal *term) {
     for (int i = term->history_count - 1; i >= 0; i--) {
         if (strcmp(term->command_history[i], term->search_term) == 0) {
             snprintf(current_tab->current_command, MAX_CMD_LEN,
-                     "user@myterm> %s", term->command_history[i]);
+                     "anshgpt@xterm> %s", term->command_history[i]);
             current_tab->cursor_position = strlen(current_tab->current_command);
             return;
         }
@@ -145,7 +145,7 @@ void builtin_search_history(Terminal *term) {
 
     if (best >= 0) {
         snprintf(current_tab->current_command, MAX_CMD_LEN,
-                 "user@myterm> %s", term->command_history[best]);
+                 "anshgpt@xterm> %s", term->command_history[best]);
         current_tab->cursor_position = strlen(current_tab->current_command);
     } else {
         add_text_to_buffer(current_tab, "No match for search term in history\n");
@@ -181,10 +181,10 @@ void autocomplete_filename(Terminal *term, char *partial_command) {
         if (last_space) {
             *(last_space + 1) = '\0';
             snprintf(current_tab->current_command, MAX_CMD_LEN,
-                     "user@myterm> %s%s", partial_command, matches[0]);
+                     "anshgpt@xterm> %s%s", partial_command, matches[0]);
         } else {
             snprintf(current_tab->current_command, MAX_CMD_LEN,
-                     "user@myterm> %s", matches[0]);
+                     "anshgpt@xterm> %s", matches[0]);
         }
     } else if (count > 1) {
         add_text_to_buffer(current_tab, "\nMatching files:\n");
@@ -396,7 +396,7 @@ void execute_user_command(Terminal *term, char *command) {
     save_history_to_file(term);
 
     char echo_line[MAX_CMD_LEN + 20];
-    snprintf(echo_line, sizeof(echo_line), "user@myterm> %s\n", trimmed_command);
+    snprintf(echo_line, sizeof(echo_line), "anshgpt@xterm> %s\n", trimmed_command);
     add_text_to_buffer(current_tab, echo_line);
 
     if (strcmp(trimmed_command, "history") == 0) {

@@ -73,7 +73,7 @@ void draw_terminal_window(Terminal *term) {
         /* Prompt + input */
         int input_y = WINDOW_HEIGHT - 30;
         XSetForeground(term->x11_display, term->graphics_context, 0x0066CC);
-        char prompt[] = "user@myterm> ";
+        char prompt[] = "anshgpt@xterm> ";
         XDrawString(term->x11_display, term->x11_window, term->graphics_context,
                     10, input_y, prompt, strlen(prompt));
 
@@ -134,7 +134,7 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
                     term->multiwatch_running = 0;
 
                     add_text_to_buffer(cur, "\nmultiWatch interrupted by Ctrl+C\n");
-                    strcpy(cur->current_command, "user@myterm> ");
+                    strcpy(cur->current_command, "anshgpt@xterm> ");
                     cur->cursor_position = strlen(cur->current_command);
                     return;
                 }
@@ -149,7 +149,7 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
                 return;
 
             case XK_a:
-                cur->cursor_position = strlen("user@myterm> ");
+                cur->cursor_position = strlen("anshgpt@xterm> ");
                 return;
 
             case XK_e:
@@ -183,13 +183,13 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
                 builtin_search_history(term);
                 term->search_mode = 0;
             } else {
-                int pl = strlen("user@myterm> ");
+                int pl = strlen("anshgpt@xterm> ");
                 if (strlen(cur->current_command) > pl) {
                     char cmd[MAX_CMD_LEN];
                     strcpy(cmd, cur->current_command + pl);
                     execute_user_command(term, cmd);
                 }
-                strcpy(cur->current_command, "user@myterm> ");
+                strcpy(cur->current_command, "anshgpt@xterm> ");
                 cur->cursor_position = strlen(cur->current_command);
             }
             break;
@@ -197,7 +197,7 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
 
         case XK_BackSpace: {
             int pl = term->search_mode ? strlen("Search: ")
-                                       : strlen("user@myterm> ");
+                                       : strlen("anshgpt@xterm> ");
             if (cur->cursor_position > pl) {
                 int L = strlen(cur->current_command);
                 for (int i = cur->cursor_position - 1; i < L; i++) {
@@ -214,7 +214,7 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
 
         case XK_Left: {
             int pl = term->search_mode ? strlen("Search: ")
-                                       : strlen("user@myterm> ");
+                                       : strlen("anshgpt@xterm> ");
             if (cur->cursor_position > pl) cur->cursor_position--;
             break;
         }
@@ -227,7 +227,7 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
             if (!term->search_mode && term->history_count > 0) {
                 if (term->history_position > 0) term->history_position--;
                 snprintf(cur->current_command, MAX_CMD_LEN,
-                         "user@myterm> %s",
+                         "anshgpt@xterm> %s",
                          term->command_history[term->history_position]);
                 cur->cursor_position = strlen(cur->current_command);
             }
@@ -238,10 +238,10 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
                 if (term->history_position < term->history_count - 1) {
                     term->history_position++;
                     snprintf(cur->current_command, MAX_CMD_LEN,
-                             "user@myterm> %s",
+                             "anshgpt@xterm> %s",
                              term->command_history[term->history_position]);
                 } else {
-                    strcpy(cur->current_command, "user@myterm> ");
+                    strcpy(cur->current_command, "anshgpt@xterm> ");
                 }
                 cur->cursor_position = strlen(cur->current_command);
             }
@@ -249,7 +249,7 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
 
         case XK_Tab:
             if (!term->search_mode) {
-                int pl = strlen("user@myterm> ");
+                int pl = strlen("anshgpt@xterm> ");
                 if (strlen(cur->current_command) > pl) {
                     char *part = cur->current_command + pl;
                     autocomplete_filename(term, part);
@@ -261,7 +261,7 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
         case XK_Escape:
             if (term->search_mode) {
                 term->search_mode = 0;
-                strcpy(cur->current_command, "user@myterm> ");
+                strcpy(cur->current_command, "anshgpt@xterm> ");
                 cur->cursor_position = strlen(cur->current_command);
             }
             break;
@@ -382,7 +382,7 @@ void setup_x11_gui(Terminal *term) {
         WhitePixel(term->x11_display, scr)
     );
 
-    XStoreName(term->x11_display, term->x11_window, "MyTerm - CS69201 Project");
+    XStoreName(term->x11_display, term->x11_window, "Xterm - Project by Ansh Gupta");
     term->graphics_context = XCreateGC(term->x11_display, term->x11_window, 0, NULL);
     XSetForeground(term->x11_display, term->graphics_context,
                    BlackPixel(term->x11_display, scr));

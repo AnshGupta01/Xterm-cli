@@ -108,7 +108,7 @@ void initialize_new_tab(Terminal *term, int tab_index) {
     tab->is_active = 1;
     tab->shell_process_id = -1;
     tab->display_buffer[0] = '\0';
-    strcpy(tab->current_command, "user@myterm> ");
+    strcpy(tab->current_command, "anshgpt@xterm> ");
     tab->cursor_position = strlen(tab->current_command);
 
     if (pipe(tab->input_pipe) == -1 || pipe(tab->output_pipe) == -1) {
@@ -190,7 +190,7 @@ void close_current_tab(Terminal *term) {
 
     if (next == -1) {
         cleanup_terminal_resources(term);
-        printf("All tabs closed. Exiting MyTerm.\n");
+        printf("All tabs closed. Exiting XTerm.\n");
         exit(0);
     } else {
         term->current_tab_index = next;

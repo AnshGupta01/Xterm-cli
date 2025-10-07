@@ -26,7 +26,7 @@ $(BUILD_DIR):
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(INC_DIR)/xterm.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Link all objects into build/myterm
+# Link all objects into build/xterm
 $(BIN): $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) -o $(BIN) $(LIBS)
 
