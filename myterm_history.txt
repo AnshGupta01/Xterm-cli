@@ -1,5 +1,5 @@
 # MyTerm Command History
-# Generated on: Tue Oct  7 12:17:47 2025
+# Generated on: Tue Oct  7 13:03:24 2025
 kyu
 hello
 pwd
@@ -122,4 +122,11 @@ multiWatch ["pwd","ls"]
 termi
 multiWatch["pwd","ls"]
 hello
+exit
+workding
+multiWatch["pwd","ls"]
+exit
+hello
+pwd
+multiWatch["pwd","ls"]
 exit

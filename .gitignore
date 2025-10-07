@@ -40,7 +40,5 @@
 # debug information files
 *.dwo
 
-xterm
-
 .DS_Store
 build/xterm
