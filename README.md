@@ -61,3 +61,9 @@ XTerm/
 - **XQuartz** - X11 server for macOS
 - **Xcode Command Line Tools** - For compilation
 - **Homebrew** (optional, for easy XQuartz installation)
+
+## Screenshots
+### Example usage of `MultiWatch` & `History` command
+![Image](https://github.com/user-attachments/assets/214b0193-dd19-42ce-ab25-d8f41ea385e2)
+
+
