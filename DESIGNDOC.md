@@ -76,6 +76,45 @@ This project implements a minimal, educational terminal emulator on top of the X
    - wide_to_utf8/utf8_to_wide for GUI/system boundaries.
    - Parse \n sequences and actual newlines; display line by line.
 
+
+## Features Implemented
+
+### X11 Graphical Interface
+
+The terminal uses Xlib to create a simple window with basic GUI controls. Tabs are displayed at the top with click and keyboard navigation support. The display area supports drawing text lines with scrolling and a visible cursor indication.
+
+### Multiple Tabs
+
+Supports up to 5 tabs, each running its own shell process connected through pipes. Tabs can be opened with Ctrl+T and closed with Ctrl+W. Tab switching is possible via mouse clicks on tabs or programmatically.
+
+### Command Execution
+
+User commands are processed with a basic dispatcher prioritizing built-in commands (e.g., history, exit, multiWatch). External commands run via shell processes through pipes, with stdout/stderr captured and displayed asynchronously.
+
+### Unicode Support
+
+Unicode input and output are enabled by setting locale (setlocale) and handling UTF-8 encoded text internally. This allows proper rendering of international characters and multi-byte sequences in the terminal display.
+
+### Command History
+
+A command history buffer stores up to 10,000 recent commands, supporting navigation with arrow keys and search mode (Ctrl+R). History persists across sessions through a simple file save and load mechanism.
+
+### MultiWatch Command
+
+Enables running multiple commands in parallel as child processes, capturing and displaying their output concurrently within the terminal window. MultiWatch processes can be interrupted with Ctrl+C.
+
+### Input Line Editing and Completion
+
+Supports line editing with cursor movement (arrow keys), backspace, and tab-based filename autocomplete using directory listing. The prompt dynamically adjusts during search mode and normal input.
+
+### Scrollable Output View
+
+Large outputs such as command history or file completion results are shown in a scrollable view with paging and line-by-line scrolling using keyboard keys (arrows, PageUp/Down, Home/End).
+
+### Signal Handling and Process Control
+
+Keyboard signals Ctrl+C and Ctrl+Z send SIGINT and SIGTSTP respectively to running shell processes for interruption or suspension, enabling typical Unix shell behavior inside tabs.
+
 ## Error Handling
 - Checks on X11 resources, memory allocation, and conversions.
 - Graceful fallbacks (e.g., ASCII draw when conversion fails).
