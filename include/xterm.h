@@ -1,7 +1,6 @@
 #ifndef XTERM_REDEFINED_H
 #define XTERM_REDEFINED_H
 
-/* --- Core System and Standard Libraries --- */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,12 +14,11 @@
 #include <dirent.h>
 #include <time.h>
 
-/* --- X Window System Libraries --- */
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 
-/* --- Configuration Macros --- */
+// Basic window config
 #define WINDOW_WIDTH 900
 #define WINDOW_HEIGHT 700
 #define MAX_TABS 5
@@ -28,21 +26,17 @@
 #define MAX_BUFFER_SIZE 8192
 #define MAX_HISTORY 10000
 #define HISTORY_DISPLAY 1000
-#define MAX_SCROLL_LINES 2000  // Maximum lines for scrollable content
+#define MAX_SCROLL_LINES 2000
 
-/* --- Data Structures --- */
-
-// Scrollable content structure
 typedef struct {
-    char content[MAX_SCROLL_LINES][MAX_CMD_LEN];  // Array of lines
-    int total_lines;                              // Total number of lines
-    int scroll_offset;                            // Current scroll position (0 = top)
-    int visible_lines;                            // Number of lines that fit in window
-    int is_active;                                // Whether scroll mode is active
-    char title[256];                              // Title for the scrollable view
+    char content[MAX_SCROLL_LINES][MAX_CMD_LEN];
+    int total_lines;
+    int scroll_offset;
+    int visible_lines;
+    int is_active;  
+    char title[256];
 } ScrollView;
 
-//Single tab.
 typedef struct {
     pid_t shell_process_id;
     int input_pipe[2];
@@ -51,50 +45,43 @@ typedef struct {
     char current_command[MAX_CMD_LEN];
     int cursor_position;
     int is_active;
-    ScrollView scroll_view;  // Scrollable content view
+    ScrollView scroll_view;
 } Tab;
 
-//Main app
 typedef struct {
-    // X11 GUI components
     Display *x11_display;
     Window x11_window;
     GC graphics_context;
     
-    // Tab management
     Tab tabs[MAX_TABS];
     int current_tab_index;
     int total_tabs;
     
-    // Command history and search state
     char command_history[MAX_HISTORY][MAX_CMD_LEN];
     int history_count;
     int history_position;
     int search_mode;
     char search_term[MAX_CMD_LEN];
     
-    // MultiWatch feature
     int multiwatch_running;
     int multiwatch_interrupted;
 } Terminal;
 
-// Global pointer to the main terminal instance for signal handlers.
 extern Terminal *g_terminal;
 
-// Globals for the MultiWatch command functionality (defined in commands.c).
 extern pid_t multiwatch_pids[10];
 extern int multiwatch_pipes[10];
 extern int multiwatch_count;
 extern int multiwatch_active;
 
-// Helper Functions
+// Basic helper stuff
 void add_command_to_history(Terminal *term, char *command);
 void add_text_to_buffer(Tab *tab, char *text);
 void autocomplete_filename(Terminal *term, char *partial_name);
 char* trim_whitespace(char *str);
 void parse_multiwatch_commands(char *args, char commands[][MAX_CMD_LEN], int *count);
 
-// Scroll View Functions
+// Scroll functions
 void init_scroll_view(ScrollView *scroll);
 void enter_scroll_mode(Tab *tab, const char *title);
 void exit_scroll_mode(Tab *tab);
@@ -106,41 +93,39 @@ void scroll_page_down(ScrollView *scroll);
 void scroll_to_top(ScrollView *scroll);
 void scroll_to_bottom(ScrollView *scroll);
 
-// Built-in Commands
+// Commands 
 void builtin_history_display(Terminal *term);
 void builtin_multiwatch(Terminal *term, char *args);
 void builtin_search_history(Terminal *term);
 
-// MultiWatch Specific
 void check_multiwatch_output(Terminal *term);
 void multiwatch_signal_handler(int sig);
 
-// Core Terminal and Resource Management
+// Core terminal stuff
 Terminal* create_new_terminal();
 void cleanup_terminal_resources(Terminal *term);
 
-// Command Execution
 void execute_user_command(Terminal *term, char *command);
 void handle_input_redirection(char *command, char *input_file);
 void handle_output_redirection(char *command, char *output_file);
 void handle_pipe_commands(Terminal *term, char *command);
 void run_external_command(Terminal *term, char *cmd_line);
 
-// History File I/O
+// File operations
 void load_history_from_file(Terminal *term);
 void save_history_to_file(Terminal *term);
 
-// Signal Handling
+// Signal stuff  
 void setup_signal_handlers();
 void handle_sigint(int sig);
 void handle_sigtstp(int sig);
 
-// Tab Management
+// Tab operations
 void close_current_tab(Terminal *term);
 void initialize_new_tab(Terminal *term, int tab_index);
 void switch_to_tab(Terminal *term, int tab_index);
 
-// X11 GUI and Event Handling
+// GUI functions
 void draw_terminal_window(Terminal *term);
 void draw_scroll_view(Terminal *term, ScrollView *scroll);
 void handle_x11_events(Terminal *term);

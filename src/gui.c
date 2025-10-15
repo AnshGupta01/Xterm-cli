@@ -1,45 +1,46 @@
 #include "xterm.h"
 
-/* Initialize scroll view structure */
 void init_scroll_view(ScrollView *scroll) {
     if (!scroll) return;
+    
     scroll->total_lines = 0;
     scroll->scroll_offset = 0;
     scroll->visible_lines = 0;
     scroll->is_active = 0;
     scroll->title[0] = '\0';
+    
     for (int i = 0; i < MAX_SCROLL_LINES; i++) {
         scroll->content[i][0] = '\0';
     }
 }
 
-/* Enter scroll mode with given title */
 void enter_scroll_mode(Tab *tab, const char *title) {
     if (!tab) return;
+    
     init_scroll_view(&tab->scroll_view);
     tab->scroll_view.is_active = 1;
+    
     if (title) {
         strncpy(tab->scroll_view.title, title, sizeof(tab->scroll_view.title) - 1);
         tab->scroll_view.title[sizeof(tab->scroll_view.title) - 1] = '\0';
     }
 }
 
-/* Exit scroll mode */
 void exit_scroll_mode(Tab *tab) {
     if (!tab) return;
     tab->scroll_view.is_active = 0;
     init_scroll_view(&tab->scroll_view);
 }
 
-/* Add a line to scrollable content */
 void add_line_to_scroll(ScrollView *scroll, const char *line) {
     if (!scroll || !line || scroll->total_lines >= MAX_SCROLL_LINES) return;
+    
     strncpy(scroll->content[scroll->total_lines], line, MAX_CMD_LEN - 1);
     scroll->content[scroll->total_lines][MAX_CMD_LEN - 1] = '\0';
     scroll->total_lines++;
 }
 
-/* Scroll movement functions */
+// Basic scroll navigation
 void scroll_up(ScrollView *scroll) {
     if (!scroll || !scroll->is_active) return;
     if (scroll->scroll_offset > 0) {
@@ -82,250 +83,246 @@ void scroll_to_bottom(ScrollView *scroll) {
     scroll->scroll_offset = max_offset;
 }
 
-/* Draw scrollable content view */
 void draw_scroll_view(Terminal *term, ScrollView *scroll) {
     if (!term || !scroll || !scroll->is_active) return;
     
-    int y0 = 50, y1 = WINDOW_HEIGHT - 80, lh = 16;
-    int max_lines = (y1 - y0) / lh;
-    scroll->visible_lines = max_lines;
+    int start_y = 50;
+    int end_y = WINDOW_HEIGHT - 80;
+    int line_height = 16;
+    int max_visible_lines = (end_y - start_y) / line_height;
+    scroll->visible_lines = max_visible_lines;
     
-    // Clear the area
-    XClearArea(term->x11_display, term->x11_window, 0, y0, WINDOW_WIDTH, y1 - y0, False);
+    // Clear drawing area
+    XClearArea(term->x11_display, term->x11_window, 0, start_y, WINDOW_WIDTH, end_y - start_y, False);
     
     // Draw title bar
     XSetForeground(term->x11_display, term->graphics_context, 0x0066CC);
-    char title_bar[512];
-    snprintf(title_bar, sizeof(title_bar), "%s (Lines %d-%d of %d) - Use PageUp/PageDown/Arrows to scroll, ESC to exit", 
-        scroll->title, 
-        scroll->scroll_offset + 1, 
-        scroll->scroll_offset + max_lines > scroll->total_lines ? scroll->total_lines : scroll->scroll_offset + max_lines,
-        scroll->total_lines);
+    char title_text[512];
+    snprintf(title_text, sizeof(title_text), "%s (Lines %d-%d of %d) - Use arrows/PageUp/PageDown to scroll, ESC to exit",
+             scroll->title,
+             scroll->scroll_offset + 1,
+             scroll->scroll_offset + max_visible_lines > scroll->total_lines ? scroll->total_lines : scroll->scroll_offset + max_visible_lines,
+             scroll->total_lines);
     XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-        10, y0 - 10, title_bar, strlen(title_bar));
+                10, start_y - 10, title_text, strlen(title_text));
     
-    // Reset color to black
+    // Reset to black for content
     XSetForeground(term->x11_display, term->graphics_context,
-        BlackPixel(term->x11_display, DefaultScreen(term->x11_display)));
+                   BlackPixel(term->x11_display, DefaultScreen(term->x11_display)));
     
-    // Draw separator line
+    // Draw separator
     XDrawLine(term->x11_display, term->x11_window, term->graphics_context,
-        10, y0 - 5, WINDOW_WIDTH - 10, y0 - 5);
+              10, start_y - 5, WINDOW_WIDTH - 10, start_y - 5);
     
-    // Draw visible lines
-    int y = y0;
-    for (int i = scroll->scroll_offset; i < scroll->total_lines && i < scroll->scroll_offset + max_lines; i++) {
-        if (y >= y1) break;
-        int len = strlen(scroll->content[i]);
-        if (len > 0 && len < 200) {
+    // Draw the visible lines
+    int current_y = start_y;
+    for (int i = scroll->scroll_offset; i < scroll->total_lines && i < scroll->scroll_offset + max_visible_lines; i++) {
+        if (current_y >= end_y) break;
+        int line_len = strlen(scroll->content[i]);
+        if (line_len > 0 && line_len < 200) {
             XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                10, y, scroll->content[i], len);
+                        10, current_y, scroll->content[i], line_len);
         }
-        y += lh;
+        current_y += line_height;
     }
     
-    // Draw scroll indicator on the right
-    if (scroll->total_lines > max_lines) {
-        int bar_height = y1 - y0;
-        int bar_x = WINDOW_WIDTH - 20;
+    // Draw scroll indicator if needed
+    if (scroll->total_lines > max_visible_lines) {
+        int scrollbar_height = end_y - start_y;
+        int scrollbar_x = WINDOW_WIDTH - 20;
         
-        // Draw scroll bar background
         XDrawRectangle(term->x11_display, term->x11_window, term->graphics_context,
-            bar_x, y0, 10, bar_height);
+                       scrollbar_x, start_y, 10, scrollbar_height);
         
-        // Calculate scroll thumb position and size
-        int thumb_height = (bar_height * max_lines) / scroll->total_lines;
+        int thumb_height = (scrollbar_height * max_visible_lines) / scroll->total_lines;
         if (thumb_height < 10) thumb_height = 10;
         
-        int thumb_pos = (bar_height * scroll->scroll_offset) / scroll->total_lines;
-        if (thumb_pos + thumb_height > bar_height) {
-            thumb_pos = bar_height - thumb_height;
+        int thumb_position = (scrollbar_height * scroll->scroll_offset) / scroll->total_lines;
+        if (thumb_position + thumb_height > scrollbar_height) {
+            thumb_position = scrollbar_height - thumb_height;
         }
         
-        // Draw scroll thumb
         XFillRectangle(term->x11_display, term->x11_window, term->graphics_context,
-            bar_x + 1, y0 + thumb_pos, 8, thumb_height);
+                       scrollbar_x + 1, start_y + thumb_position, 8, thumb_height);
     }
 }
 
-/* Draw all visible UI: tabs, buffer (auto-scroll), prompt, input, cursor or scroll view */
 void draw_terminal_window(Terminal *term) {
     XClearWindow(term->x11_display, term->x11_window);
     
-    /* Tabs */
+    // Draw tabs at top
     int tab_width = WINDOW_WIDTH / MAX_TABS;
     for (int i = 0; i < MAX_TABS; i++) {
-        int x = i * tab_width;
-        char label[32];
-        snprintf(label, sizeof(label), "Tab %d", i + 1);
+        int tab_x = i * tab_width;
+        char tab_label[32];
+        snprintf(tab_label, sizeof(tab_label), "Tab %d", i + 1);
+        
         if (i < term->total_tabs && term->tabs[i].is_active) {
             if (i == term->current_tab_index) {
+                // Active tab - filled
                 XFillRectangle(term->x11_display, term->x11_window, term->graphics_context,
-                    x + 1, 1, tab_width - 2, 24);
+                               tab_x + 1, 1, tab_width - 2, 24);
                 XSetForeground(term->x11_display, term->graphics_context,
-                    WhitePixel(term->x11_display, DefaultScreen(term->x11_display)));
+                               WhitePixel(term->x11_display, DefaultScreen(term->x11_display)));
                 XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                    x + 10, 16, label, strlen(label));
+                            tab_x + 10, 16, tab_label, strlen(tab_label));
                 XSetForeground(term->x11_display, term->graphics_context,
-                    BlackPixel(term->x11_display, DefaultScreen(term->x11_display)));
+                               BlackPixel(term->x11_display, DefaultScreen(term->x11_display)));
             } else {
+                // Inactive tab - outlined
                 XDrawRectangle(term->x11_display, term->x11_window, term->graphics_context,
-                    x, 0, tab_width, 25);
+                               tab_x, 0, tab_width, 25);
                 XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                    x + 10, 16, label, strlen(label));
+                            tab_x + 10, 16, tab_label, strlen(tab_label));
             }
         }
     }
     
     if (term->current_tab_index < term->total_tabs &&
         term->tabs[term->current_tab_index].is_active) {
-        Tab *cur = &term->tabs[term->current_tab_index];
+        Tab *current_tab = &term->tabs[term->current_tab_index];
         
-        // Check if we're in scroll mode
-        if (cur->scroll_view.is_active) {
-            draw_scroll_view(term, &cur->scroll_view);
+        if (current_tab->scroll_view.is_active) {
+            draw_scroll_view(term, &current_tab->scroll_view);
         } else {
-            /* Buffer with auto-scrolling */
-            int y0 = 50, y1 = WINDOW_HEIGHT - 80, lh = 16;
-            int max_lines = (y1 - y0) / lh;
+            // Regular terminal view
+            int content_start_y = 50;
+            int content_end_y = WINDOW_HEIGHT - 80;
+            int line_height = 16;
+            int max_lines = (content_end_y - content_start_y) / line_height;
             
-            char *copy = malloc(strlen(cur->display_buffer) + 1);
-            if (copy) {
-                strcpy(copy, cur->display_buffer);
+            // Parse and display buffer content
+            char *buffer_copy = malloc(strlen(current_tab->display_buffer) + 1);
+            if (buffer_copy) {
+                strcpy(buffer_copy, current_tab->display_buffer);
                 char *lines[1000];
-                int n = 0;
-                char *p = copy;
-                while (p && *p && n < 1000) {
-                    char *nl = strchr(p, '\n');
-                    if (nl) {
-                        *nl = '\0';
-                        lines[n++] = p;
-                        p = nl + 1;
+                int line_count = 0;
+                char *line_ptr = buffer_copy;
+                
+                while (line_ptr && *line_ptr && line_count < 1000) {
+                    char *newline = strchr(line_ptr, '\n');
+                    if (newline) {
+                        *newline = '\0';
+                        lines[line_count++] = line_ptr;
+                        line_ptr = newline + 1;
                     } else {
-                        if (*p) lines[n++] = p;
+                        if (*line_ptr) lines[line_count++] = line_ptr;
                         break;
                     }
                 }
                 
-                int start = (n > max_lines) ? (n - max_lines) : 0;
-                int y = y0;
-                for (int i = start; i < n && y < y1; i++) {
-                    int len = strlen(lines[i]);
-                    if (len > 0 && len < 200) {
+                // Auto-scroll to show recent lines
+                int start_line = (line_count > max_lines) ? (line_count - max_lines) : 0;
+                int current_y = content_start_y;
+                for (int i = start_line; i < line_count && current_y < content_end_y; i++) {
+                    int line_len = strlen(lines[i]);
+                    if (line_len > 0 && line_len < 200) {
                         XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                            10, y, lines[i], len);
+                                    10, current_y, lines[i], line_len);
                     }
-                    y += lh;
+                    current_y += line_height;
                 }
-                free(copy);
+                free(buffer_copy);
             }
             
-            /* Prompt + input - FIXED for search mode */
+            // Draw input area
             int input_y = WINDOW_HEIGHT - 30;
             XSetForeground(term->x11_display, term->graphics_context, 0x0066CC);
             
-            // Determine prompt based on current mode
-            char *prompt;
+            // Show appropriate prompt
+            char *prompt_text;
             int prompt_len;
             if (term->search_mode) {
-                prompt = "Search: ";
+                prompt_text = "Search: ";
                 prompt_len = strlen("Search: ");
             } else {
-                prompt = "anshgpt@xterm> ";
+                prompt_text = "anshgpt@xterm> ";
                 prompt_len = strlen("anshgpt@xterm> ");
             }
             
-            // Draw the prompt
             XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                10, input_y, prompt, prompt_len);
+                        10, input_y, prompt_text, prompt_len);
             
-            // Reset color to black for user input
+            // Reset color for user input
             XSetForeground(term->x11_display, term->graphics_context,
-                BlackPixel(term->x11_display, DefaultScreen(term->x11_display)));
+                           BlackPixel(term->x11_display, DefaultScreen(term->x11_display)));
             
-            // Draw user input (after the prompt)
-            if (strlen(cur->current_command) > prompt_len) {
-                char *user_input = cur->current_command + prompt_len;
+            // Draw user input (after prompt)
+            if (strlen(current_tab->current_command) > prompt_len) {
+                char *user_input = current_tab->current_command + prompt_len;
                 XDrawString(term->x11_display, term->x11_window, term->graphics_context,
-                    10 + (prompt_len * 6), input_y, user_input, strlen(user_input));
+                            10 + (prompt_len * 6), input_y, user_input, strlen(user_input));
             }
             
-            /* Cursor - positioned correctly based on current mode */
-            int cx = 10 + (cur->cursor_position * 6);
+            // Draw cursor
+            int cursor_x = 10 + (current_tab->cursor_position * 6);
             XDrawLine(term->x11_display, term->x11_window, term->graphics_context,
-                cx, input_y - 12, cx, input_y + 2);
+                      cursor_x, input_y - 12, cursor_x, input_y + 2);
         }
     }
+    
     XFlush(term->x11_display);
 }
 
-/* Process keyboard input in scroll mode */
 void process_scroll_input(Terminal *term, XKeyEvent *event) {
-    Tab *cur = &term->tabs[term->current_tab_index];
-    ScrollView *scroll = &cur->scroll_view;
-    KeySym ks = XLookupKeysym(event, 0);
+    Tab *current_tab = &term->tabs[term->current_tab_index];
+    ScrollView *scroll = &current_tab->scroll_view;
+    KeySym key_symbol = XLookupKeysym(event, 0);
     
-    switch (ks) {
+    switch (key_symbol) {
         case XK_Escape:
-            exit_scroll_mode(cur);
+            exit_scroll_mode(current_tab);
             break;
-            
         case XK_Up:
             scroll_up(scroll);
             break;
-            
         case XK_Down:
             scroll_down(scroll);
             break;
-            
         case XK_Page_Up:
             scroll_page_up(scroll);
             break;
-            
         case XK_Page_Down:
             scroll_page_down(scroll);
             break;
-            
         case XK_Home:
             scroll_to_top(scroll);
             break;
-            
         case XK_End:
             scroll_to_bottom(scroll);
             break;
     }
 }
 
-/* Keyboard handling: editing, history nav, search mode, tab mgmt, signals, autocomplete, scrolling */
 void process_keyboard_input(Terminal *term, XKeyEvent *event) {
     if (term->current_tab_index >= term->total_tabs ||
         !term->tabs[term->current_tab_index].is_active) {
         return;
     }
     
-    Tab *cur = &term->tabs[term->current_tab_index];
+    Tab *current_tab = &term->tabs[term->current_tab_index];
     
-    // If in scroll mode, handle scroll input
-    if (cur->scroll_view.is_active) {
+    // Handle scroll mode separately
+    if (current_tab->scroll_view.is_active) {
         process_scroll_input(term, event);
         return;
     }
     
-    KeySym ks = XLookupKeysym(event, 0);
+    KeySym key_symbol = XLookupKeysym(event, 0);
     
-    /* Control combos */
+    // Handle control key combinations
     if (event->state & ControlMask) {
-        switch (ks) {
+        switch (key_symbol) {
             case XK_c:
-                /* Break multiWatch first */
+                // Stop multiwatch if running
                 if (multiwatch_active) {
                     for (int i = 0; i < multiwatch_count; i++) {
                         if (multiwatch_pipes[i] >= 0) {
-                            char buf[512];
-                            ssize_t n;
-                            while ((n = read(multiwatch_pipes[i], buf, sizeof(buf) - 1)) > 0) {
-                                buf[n] = '\0';
-                                add_text_to_buffer(cur, buf);
+                            char temp_buffer[512];
+                            ssize_t bytes_read;
+                            while ((bytes_read = read(multiwatch_pipes[i], temp_buffer, sizeof(temp_buffer) - 1)) > 0) {
+                                temp_buffer[bytes_read] = '\0';
+                                add_text_to_buffer(current_tab, temp_buffer);
                             }
                             close(multiwatch_pipes[i]);
                             multiwatch_pipes[i] = -1;
@@ -339,40 +336,40 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
                     multiwatch_active = 0;
                     multiwatch_count = 0;
                     term->multiwatch_running = 0;
-                    add_text_to_buffer(cur, "\nmultiWatch interrupted by Ctrl+C\n");
-                    strcpy(cur->current_command, "anshgpt@xterm> ");
-                    cur->cursor_position = strlen(cur->current_command);
+                    add_text_to_buffer(current_tab, "\nmultiWatch interrupted by Ctrl+C\n");
+                    strcpy(current_tab->current_command, "anshgpt@xterm> ");
+                    current_tab->cursor_position = strlen(current_tab->current_command);
                     return;
                 }
-                if (cur->shell_process_id > 0) kill(cur->shell_process_id, SIGINT);
+                if (current_tab->shell_process_id > 0) kill(current_tab->shell_process_id, SIGINT);
                 return;
-                
+            
             case XK_z:
-                if (cur->shell_process_id > 0) {
-                    kill(cur->shell_process_id, SIGTSTP);
-                    add_text_to_buffer(cur, "\n[Process suspended - use 'fg' to resume]\n");
+                if (current_tab->shell_process_id > 0) {
+                    kill(current_tab->shell_process_id, SIGTSTP);
+                    add_text_to_buffer(current_tab, "\n[Process suspended - use 'fg' to resume]\n");
                 }
                 return;
-                
+            
             case XK_a:
                 if (term->search_mode) {
-                    cur->cursor_position = strlen("Search: ");
+                    current_tab->cursor_position = strlen("Search: ");
                 } else {
-                    cur->cursor_position = strlen("anshgpt@xterm> ");
+                    current_tab->cursor_position = strlen("anshgpt@xterm> ");
                 }
                 return;
-                
+            
             case XK_e:
-                cur->cursor_position = strlen(cur->current_command);
+                current_tab->cursor_position = strlen(current_tab->current_command);
                 return;
-                
+            
             case XK_r:
                 term->search_mode = 1;
-                strcpy(cur->current_command, "Search: ");
-                cur->cursor_position = strlen(cur->current_command);
+                strcpy(current_tab->current_command, "Search: ");
+                current_tab->cursor_position = strlen(current_tab->current_command);
                 term->search_term[0] = '\0';
                 return;
-                
+            
             case XK_t:
                 if (term->total_tabs < MAX_TABS) {
                     initialize_new_tab(term, term->total_tabs);
@@ -385,123 +382,124 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
         }
     }
     
-    /* Special keys */
-    switch (ks) {
+    // Handle special keys
+    switch (key_symbol) {
         case XK_Return:
         case XK_KP_Enter: {
             if (term->search_mode) {
                 builtin_search_history(term);
                 term->search_mode = 0;
             } else {
-                int pl = strlen("anshgpt@xterm> ");
-                if (strlen(cur->current_command) > pl) {
-                    char cmd[MAX_CMD_LEN];
-                    strcpy(cmd, cur->current_command + pl);
-                    execute_user_command(term, cmd);
+                int prompt_len = strlen("anshgpt@xterm> ");
+                if (strlen(current_tab->current_command) > prompt_len) {
+                    char command_text[MAX_CMD_LEN];
+                    strcpy(command_text, current_tab->current_command + prompt_len);
+                    execute_user_command(term, command_text);
                 }
-                strcpy(cur->current_command, "anshgpt@xterm> ");
-                cur->cursor_position = strlen(cur->current_command);
+                strcpy(current_tab->current_command, "anshgpt@xterm> ");
+                current_tab->cursor_position = strlen(current_tab->current_command);
             }
             break;
         }
         
         case XK_BackSpace: {
-            int pl;
+            int prompt_len;
             if (term->search_mode) {
-                pl = strlen("Search: ");
+                prompt_len = strlen("Search: ");
             } else {
-                pl = strlen("anshgpt@xterm> ");
+                prompt_len = strlen("anshgpt@xterm> ");
             }
             
-            if (cur->cursor_position > pl) {
-                int L = strlen(cur->current_command);
-                for (int i = cur->cursor_position - 1; i < L; i++) {
-                    cur->current_command[i] = cur->current_command[i + 1];
+            if (current_tab->cursor_position > prompt_len) {
+                int cmd_len = strlen(current_tab->current_command);
+                for (int i = current_tab->cursor_position - 1; i < cmd_len; i++) {
+                    current_tab->current_command[i] = current_tab->current_command[i + 1];
                 }
-                cur->cursor_position--;
+                current_tab->cursor_position--;
                 if (term->search_mode) {
-                    int sl = strlen(term->search_term);
-                    if (sl > 0) term->search_term[sl - 1] = '\0';
+                    int search_len = strlen(term->search_term);
+                    if (search_len > 0) term->search_term[search_len - 1] = '\0';
                 }
             }
             break;
         }
         
         case XK_Left: {
-            int pl;
+            int prompt_len;
             if (term->search_mode) {
-                pl = strlen("Search: ");
+                prompt_len = strlen("Search: ");
             } else {
-                pl = strlen("anshgpt@xterm> ");
+                prompt_len = strlen("anshgpt@xterm> ");
             }
             
-            if (cur->cursor_position > pl) cur->cursor_position--;
+            if (current_tab->cursor_position > prompt_len) current_tab->cursor_position--;
             break;
         }
         
         case XK_Right:
-            if (cur->cursor_position < strlen(cur->current_command)) cur->cursor_position++;
+            if (current_tab->cursor_position < strlen(current_tab->current_command)) current_tab->cursor_position++;
             break;
-            
+        
         case XK_Up:
             if (!term->search_mode && term->history_count > 0) {
                 if (term->history_position > 0) term->history_position--;
-                snprintf(cur->current_command, MAX_CMD_LEN,
-                    "anshgpt@xterm> %s",
-                    term->command_history[term->history_position]);
-                cur->cursor_position = strlen(cur->current_command);
+                snprintf(current_tab->current_command, MAX_CMD_LEN,
+                         "anshgpt@xterm> %s",
+                         term->command_history[term->history_position]);
+                current_tab->cursor_position = strlen(current_tab->current_command);
             }
             break;
-            
+        
         case XK_Down:
             if (!term->search_mode && term->history_count > 0) {
                 if (term->history_position < term->history_count - 1) {
                     term->history_position++;
-                    snprintf(cur->current_command, MAX_CMD_LEN,
-                        "anshgpt@xterm> %s",
-                        term->command_history[term->history_position]);
+                    snprintf(current_tab->current_command, MAX_CMD_LEN,
+                             "anshgpt@xterm> %s",
+                             term->command_history[term->history_position]);
                 } else {
-                    strcpy(cur->current_command, "anshgpt@xterm> ");
+                    strcpy(current_tab->current_command, "anshgpt@xterm> ");
                 }
-                cur->cursor_position = strlen(cur->current_command);
+                current_tab->cursor_position = strlen(current_tab->current_command);
             }
             break;
-            
+        
         case XK_Tab:
             if (!term->search_mode) {
-                int pl = strlen("anshgpt@xterm> ");
-                if (strlen(cur->current_command) > pl) {
-                    char *part = cur->current_command + pl;
-                    autocomplete_filename(term, part);
-                    cur->cursor_position = strlen(cur->current_command);
+                int prompt_len = strlen("anshgpt@xterm> ");
+                if (strlen(current_tab->current_command) > prompt_len) {
+                    char *partial = current_tab->current_command + prompt_len;
+                    autocomplete_filename(term, partial);
+                    current_tab->cursor_position = strlen(current_tab->current_command);
                 }
             }
             break;
-            
+        
         case XK_Escape:
             if (term->search_mode) {
                 term->search_mode = 0;
-                strcpy(cur->current_command, "anshgpt@xterm> ");
-                cur->cursor_position = strlen(cur->current_command);
+                strcpy(current_tab->current_command, "anshgpt@xterm> ");
+                current_tab->cursor_position = strlen(current_tab->current_command);
             }
             break;
-            
+        
         default: {
-            char buf[10];
-            int n = XLookupString(event, buf, sizeof(buf) - 1, NULL, NULL);
-            if (n == 1 && buf[0] >= 32 && buf[0] <= 126) {
-                int L = strlen(cur->current_command);
-                if (L < MAX_CMD_LEN - 2) {
-                    for (int i = L; i >= cur->cursor_position; i--) {
-                        cur->current_command[i + 1] = cur->current_command[i];
+            char input_buffer[10];
+            int bytes_read = XLookupString(event, input_buffer, sizeof(input_buffer) - 1, NULL, NULL);
+            if (bytes_read == 1 && input_buffer[0] >= 32 && input_buffer[0] <= 126) {
+                int cmd_len = strlen(current_tab->current_command);
+                if (cmd_len < MAX_CMD_LEN - 2) {
+                    // Insert character at cursor position
+                    for (int i = cmd_len; i >= current_tab->cursor_position; i--) {
+                        current_tab->current_command[i + 1] = current_tab->current_command[i];
                     }
-                    cur->current_command[cur->cursor_position] = buf[0];
-                    cur->cursor_position++;
+                    current_tab->current_command[current_tab->cursor_position] = input_buffer[0];
+                    current_tab->cursor_position++;
                     if (term->search_mode) {
-                        int sl = strlen(term->search_term);
-                        if (sl < MAX_CMD_LEN - 1) {
-                            term->search_term[sl] = buf[0];
-                            term->search_term[sl + 1] = '\0';
+                        int search_len = strlen(term->search_term);
+                        if (search_len < MAX_CMD_LEN - 1) {
+                            term->search_term[search_len] = input_buffer[0];
+                            term->search_term[search_len + 1] = '\0';
                         }
                     }
                 }
@@ -511,68 +509,67 @@ void process_keyboard_input(Terminal *term, XKeyEvent *event) {
     }
 }
 
-/* Event loop: handle X events, read shell pipes via select, and poll multiWatch */
 void handle_x11_events(Terminal *term) {
-    XEvent ev;
-    fd_set rfds;
-    int xfd = ConnectionNumber(term->x11_display);
-    struct timeval tv;
+    XEvent event;
+    fd_set read_fds;
+    int x11_fd = ConnectionNumber(term->x11_display);
+    struct timeval timeout;
     
     while (1) {
-        /* Drain all X events */
+        // Process all pending X11 events
         while (XPending(term->x11_display)) {
-            XNextEvent(term->x11_display, &ev);
-            switch (ev.type) {
+            XNextEvent(term->x11_display, &event);
+            switch (event.type) {
                 case Expose:
                     draw_terminal_window(term);
                     break;
-                    
+                
                 case KeyPress:
-                    process_keyboard_input(term, &ev.xkey);
+                    process_keyboard_input(term, &event.xkey);
                     draw_terminal_window(term);
                     break;
-                    
+                
                 case ButtonPress:
-                    if (ev.xbutton.y < 25) {
-                        int tab_w = WINDOW_WIDTH / MAX_TABS;
-                        int clicked = ev.xbutton.x / tab_w;
-                        if (clicked < term->total_tabs && clicked >= 0 &&
-                            term->tabs[clicked].is_active) {
-                            switch_to_tab(term, clicked);
+                    if (event.xbutton.y < 25) {
+                        int tab_width = WINDOW_WIDTH / MAX_TABS;
+                        int clicked_tab = event.xbutton.x / tab_width;
+                        if (clicked_tab < term->total_tabs && clicked_tab >= 0 &&
+                            term->tabs[clicked_tab].is_active) {
+                            switch_to_tab(term, clicked_tab);
                         }
                     }
                     break;
             }
         }
         
-        /* Shell outputs via select */
-        FD_ZERO(&rfds);
-        FD_SET(xfd, &rfds);
-        int maxfd = xfd;
+        // Check for shell output using select
+        FD_ZERO(&read_fds);
+        FD_SET(x11_fd, &read_fds);
+        int max_fd = x11_fd;
         
         for (int i = 0; i < term->total_tabs; i++) {
             if (term->tabs[i].is_active && term->tabs[i].output_pipe[0] >= 0) {
-                FD_SET(term->tabs[i].output_pipe[0], &rfds);
-                if (term->tabs[i].output_pipe[0] > maxfd) maxfd = term->tabs[i].output_pipe[0];
+                FD_SET(term->tabs[i].output_pipe[0], &read_fds);
+                if (term->tabs[i].output_pipe[0] > max_fd) max_fd = term->tabs[i].output_pipe[0];
             }
         }
         
-        tv.tv_sec = 0;
-        tv.tv_usec = 20000;
-        int rc = select(maxfd + 1, &rfds, NULL, NULL, &tv);
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 20000;  // 20ms timeout
+        int select_result = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
         
-        if (rc > 0) {
+        if (select_result > 0) {
             for (int i = 0; i < term->total_tabs; i++) {
                 if (term->tabs[i].is_active &&
                     term->tabs[i].output_pipe[0] >= 0 &&
-                    FD_ISSET(term->tabs[i].output_pipe[0], &rfds)) {
-                    char obuf[256];
-                    ssize_t n = read(term->tabs[i].output_pipe[0], obuf, sizeof(obuf) - 1);
-                    if (n > 0) {
-                        obuf[n] = '\0';
-                        add_text_to_buffer(&term->tabs[i], obuf);
+                    FD_ISSET(term->tabs[i].output_pipe[0], &read_fds)) {
+                    char output_buffer[256];
+                    ssize_t bytes_read = read(term->tabs[i].output_pipe[0], output_buffer, sizeof(output_buffer) - 1);
+                    if (bytes_read > 0) {
+                        output_buffer[bytes_read] = '\0';
+                        add_text_to_buffer(&term->tabs[i], output_buffer);
                         if (i == term->current_tab_index) draw_terminal_window(term);
-                    } else if (n == 0) {
+                    } else if (bytes_read == 0) {
                         close(term->tabs[i].output_pipe[0]);
                         term->tabs[i].output_pipe[0] = -1;
                     }
@@ -580,38 +577,37 @@ void handle_x11_events(Terminal *term) {
             }
         }
         
-        /* Always poll multiWatch and refresh when active */
+        // Always check multiwatch and redraw if active
         check_multiwatch_output(term);
         if (multiwatch_active) draw_terminal_window(term);
     }
 }
 
-/* Initialize X11 window, GC, and input masks */
 void setup_x11_gui(Terminal *term) {
     term->x11_display = XOpenDisplay(NULL);
     if (!term->x11_display) {
-        printf("Error: Cannot open X11 display. Make sure XQuartz is running.\n");
+        printf("ERROR: Can't open X11 display. Is XQuartz running?\n");
         exit(1);
     }
     
-    int scr = DefaultScreen(term->x11_display);
+    int screen = DefaultScreen(term->x11_display);
     term->x11_window = XCreateSimpleWindow(
         term->x11_display,
-        RootWindow(term->x11_display, scr),
+        RootWindow(term->x11_display, screen),
         100, 100, WINDOW_WIDTH, WINDOW_HEIGHT, 2,
-        BlackPixel(term->x11_display, scr),
-        WhitePixel(term->x11_display, scr)
+        BlackPixel(term->x11_display, screen),
+        WhitePixel(term->x11_display, screen)
     );
     
     XStoreName(term->x11_display, term->x11_window, "Xterm - Project by Ansh Gupta");
     term->graphics_context = XCreateGC(term->x11_display, term->x11_window, 0, NULL);
     XSetForeground(term->x11_display, term->graphics_context,
-        BlackPixel(term->x11_display, scr));
+                   BlackPixel(term->x11_display, screen));
     
     XSelectInput(term->x11_display, term->x11_window,
-        ExposureMask | KeyPressMask | ButtonPressMask);
+                 ExposureMask | KeyPressMask | ButtonPressMask);
     XMapWindow(term->x11_display, term->x11_window);
     XFlush(term->x11_display);
     
-    printf("X11 GUI initialized successfully\n");
+    printf("X11 GUI ready\n");
 }

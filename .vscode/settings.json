@@ -7,7 +7,8 @@
         "X11/Xutil.h": "c",
         "X11/Xlocale.h": "c",
         "wait.h": "c",
-        "fcntl.h": "c"
+        "fcntl.h": "c",
+        "locale.h": "c"
     },
     "C_Cpp.default.includePath": [
         "/opt/X11/include",
