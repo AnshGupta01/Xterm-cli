@@ -1,6 +1,59 @@
 # XTerm Command History
-# Generated on: Tue Oct  7 13:42:49 2025
+# Generated on: Wed Oct 15 14:48:53 2025
 hello
 pwd
 multiWatch["pwd","ls"]
+exit
+history
+okay
+history
+multiWatch["pwd","ls"]
+xterm_history.txt
+exit
+history
+exit
+history
+yeah
+whatever
+commands
+and
+add
+to
+it
+so
+that
+we
+can
+test
+the
+functionality
+of
+the
+history
+command
+history
+add
+exit
+ls > abc
+sort < abc
+ls > abc.txt
+sort < abc.txt
+ls | wc -l
+ls
+exit
+history
+multiWatch["pwd","ls"]
+exit
+multiWatch["pwd","ls"]
+history
+clear
+exit
+history
+multiWatch["pwd","ls"]
+history
+exit
+history
+multiWatch["pwd","ls"]
+exit
+history
 exit

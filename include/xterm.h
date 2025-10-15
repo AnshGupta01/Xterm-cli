@@ -2,17 +2,18 @@
 #define XTERM_REDEFINED_H
 
 /* --- Core System and Standard Libraries --- */
-#include <dirent.h>
-#include <fcntl.h>
-#include <locale.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <time.h>
 #include <unistd.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <sys/select.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <locale.h>
+#include <dirent.h>
+#include <time.h>
 
 /* --- X Window System Libraries --- */
 #include <X11/Xlib.h>
@@ -27,10 +28,21 @@
 #define MAX_BUFFER_SIZE 8192
 #define MAX_HISTORY 10000
 #define HISTORY_DISPLAY 1000
+#define MAX_SCROLL_LINES 2000  // Maximum lines for scrollable content
 
 /* --- Data Structures --- */
 
-//Singel tab.
+// Scrollable content structure
+typedef struct {
+    char content[MAX_SCROLL_LINES][MAX_CMD_LEN];  // Array of lines
+    int total_lines;                              // Total number of lines
+    int scroll_offset;                            // Current scroll position (0 = top)
+    int visible_lines;                            // Number of lines that fit in window
+    int is_active;                                // Whether scroll mode is active
+    char title[256];                              // Title for the scrollable view
+} ScrollView;
+
+//Single tab.
 typedef struct {
     pid_t shell_process_id;
     int input_pipe[2];
@@ -39,6 +51,7 @@ typedef struct {
     char current_command[MAX_CMD_LEN];
     int cursor_position;
     int is_active;
+    ScrollView scroll_view;  // Scrollable content view
 } Tab;
 
 //Main app
@@ -81,6 +94,18 @@ void autocomplete_filename(Terminal *term, char *partial_name);
 char* trim_whitespace(char *str);
 void parse_multiwatch_commands(char *args, char commands[][MAX_CMD_LEN], int *count);
 
+// Scroll View Functions
+void init_scroll_view(ScrollView *scroll);
+void enter_scroll_mode(Tab *tab, const char *title);
+void exit_scroll_mode(Tab *tab);
+void add_line_to_scroll(ScrollView *scroll, const char *line);
+void scroll_up(ScrollView *scroll);
+void scroll_down(ScrollView *scroll);
+void scroll_page_up(ScrollView *scroll);
+void scroll_page_down(ScrollView *scroll);
+void scroll_to_top(ScrollView *scroll);
+void scroll_to_bottom(ScrollView *scroll);
+
 // Built-in Commands
 void builtin_history_display(Terminal *term);
 void builtin_multiwatch(Terminal *term, char *args);
@@ -117,8 +142,10 @@ void switch_to_tab(Terminal *term, int tab_index);
 
 // X11 GUI and Event Handling
 void draw_terminal_window(Terminal *term);
+void draw_scroll_view(Terminal *term, ScrollView *scroll);
 void handle_x11_events(Terminal *term);
 void process_keyboard_input(Terminal *term, XKeyEvent *event);
+void process_scroll_input(Terminal *term, XKeyEvent *event);
 void setup_x11_gui(Terminal *term);
 
 #endif
