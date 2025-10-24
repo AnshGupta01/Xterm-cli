@@ -1,5 +1,5 @@
 # XTerm Command History
-# Generated on: Wed Oct 15 15:33:21 2025
+# Generated on: Fri Oct 24 13:49:46 2025
 hello
 pwd
 multiWatch["pwd","ls"]
@@ -73,4 +73,73 @@ ls | wc -l
 clear
 exit
 echo hi > abc
+exit
+sleep 30
+sad
+asd
+ls
+sleep 60
+exit
+sleep 40
+ok
+sleep
+asd'ads
+ads
+sd
+as
+pwd
+sleep 10
+ok
+ls
+ok
+hm
+ls
+clear
+k
+ok
+exit
+sleep 5
+ok
+exit
+ok
+sleep
+yes
+ok
+clear
+pwd
+ls
+exit
+texit
+exit
+sleep 5
+pwd
+ls
+sleep 10
+pl
+pwd
+ls
+pwd
+ls
+s
+ok
+ls
+exit
+sleep 10
+ok
+sleep 1
+ok
+hmm
+ok
+pwd
+sleep 10
+gf
+fg
+ok
+exit
+ok'
+exit
+pwd
+ls
+sleep 10
+ok
 exit

@@ -17,8 +17,15 @@ XTerm/
 └── README.md          # This file
 ```
 ## Build and Run Instructions
-`git clone https://github.com/AnshGupta01/Xterm-project` -> `cd xterm-project`
--> `make clean && make && make run`
+```bash
+# The build is tested on MacOS with XQuartz
+# Run the below command directly inside that XQuartz Terminal setup
+
+git clone https://github.com/AnshGupta01/Xterm-project
+cd xterm-project
+make clean && make && make run
+```
+
 
 ## Features Implemented
 
@@ -63,7 +70,5 @@ XTerm/
 - **Homebrew** (optional, for easy XQuartz installation)
 
 ## Screenshots
-### Example usage of `MultiWatch` & `History` command
+##### Example usage of `MultiWatch` & `History` command (Will be visible on git-repo)
 ![Image](https://github.com/user-attachments/assets/214b0193-dd19-42ce-ab25-d8f41ea385e2)
-
-
