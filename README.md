@@ -72,3 +72,9 @@ make clean && make && make run
 ## Screenshots
 ##### Example usage of `MultiWatch` & `History` command (Will be visible on git-repo)
 ![Image](https://github.com/user-attachments/assets/214b0193-dd19-42ce-ab25-d8f41ea385e2)
+
+---
+
+**Author:** Ansh Gupta (25CS60R34)<br>
+**Institution:** IIT Kharagpur<br>
+**Course:** CS69201 Computing Lab - 2025 Autumn
