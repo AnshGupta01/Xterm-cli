@@ -1,4 +1,4 @@
-# XTerm Project - Advanced X11 Terminal
+# XTerm - Advanced X11 Cli
 
 A feature-rich terminal emulator built with X11, implementing advanced shell functionality including tabs, history, autocomplete, and multi-command monitoring.
 
@@ -22,7 +22,7 @@ XTerm/
 # Run the below command directly inside that XQuartz Terminal setup
 
 git clone https://github.com/AnshGupta01/Xterm-project
-cd xterm-project
+cd Xterm-X11-terminal
 make clean && make && make run
 ```
 
